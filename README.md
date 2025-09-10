@@ -1,2 +1,6 @@
 # RSA-Based-Cryptography
-NT219.O11.ATTN Group Project
+Students: 
+- Lê Trí Đức - 24520009
+- Phạm Nguyễn Thành Long - 2452....
+
+Lecturer: Nguyễn Ngọc Tự
