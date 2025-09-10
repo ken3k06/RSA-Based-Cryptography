@@ -27,15 +27,11 @@ Let $\text{GenModulus}$ be a polynomial-time algorithm that, on input $1^n$, out
 1. Python 3.x
 2. Sagemath
 
-See the installation guide here: https://doc.sagemath.org/html/en/installation/index.html
-
-For the sake of convenience, it should be installed using conda-forge. 
+See the installation guide here: https://doc.sagemath.org/html/en/installation/index.html. For the sake of convenience, it should be installed using conda-forge. 
 
 3. Pycryptodome
 
-Docs and installation guide of the library: https://pycryptodome.readthedocs.io/en/latest/src/introduction.html
-
-PyCryptodome provides many cryptographic functions for working with RSA
+Docs and installation guide of the library: https://pycryptodome.readthedocs.io/en/latest/src/introduction.html. PyCryptodome provides many cryptographic functions for working with RSA
 
 # References
 - [Twenty Years of Attacks on the RSA Cryptosystem, Dan Boneh](https://crypto.stanford.edu/~dabo/papers/RSA-survey.pdf)
