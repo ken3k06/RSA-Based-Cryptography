@@ -23,7 +23,16 @@ Factoring large integers is considered difficult and the security of the RSA cry
 
 Let $\text{GenModulus}$ be a polynomial-time algorithm that, on input $1^n$, outputs $(N,p,q)$ where $N=pq$ and $p$ and $q$ are two $n$-bit primes except with probability negligible in $n$.  Then we consider the following experiment for a given algorithm $\mathcal{A}$ and parameter $n$: 
 
+# Implementation and Testing
+1. Python 3.x
+2. Sagemath
+See the installation guide here: https://doc.sagemath.org/html/en/installation/index.html
 
+For the sake of convenience, it should be installed using conda-forge. 
+3. Pycryptodome
+Docs and installation guide of the library: https://pycryptodome.readthedocs.io/en/latest/src/introduction.html
+
+PyCryptodome provides many cryptographic functions for working with RSA
 
 # References
 - [Twenty Years of Attacks on the RSA Cryptosystem, Dan Boneh](https://crypto.stanford.edu/~dabo/papers/RSA-survey.pdf)
