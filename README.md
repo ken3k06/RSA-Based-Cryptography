@@ -1,7 +1,7 @@
 # RSA-Based-Cryptography
 Students: 
 - Lê Trí Đức - 24520009
-- Phạm Nguyễn Thành Long - 2452....
+- Phạm Nguyễn Thành Long - 24521011
 
 Lecturer: Nguyễn Ngọc Tự
 
