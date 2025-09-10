@@ -24,15 +24,41 @@ Factoring large integers is considered difficult and the security of the RSA cry
 Let $\text{GenModulus}$ be a polynomial-time algorithm that, on input $1^n$, outputs $(N,p,q)$ where $N=pq$ and $p$ and $q$ are two $n$-bit primes except with probability negligible in $n$.  Then we consider the following experiment for a given algorithm $\mathcal{A}$ and parameter $n$: 
 
 # Implementation and Testing
-1. Python 3.x
-2. Sagemath
+- Python 3.x
+- Sagemath
 
-See the installation guide here: https://doc.sagemath.org/html/en/installation/index.html. For the sake of convenience, it should be installed using conda-forge. 
+See the installation guide here: https://doc.sagemath.org/html/en/installation/index.html. For the sake of convenience, it should be installed using conda-forge.
 
-3. Pycryptodome
+After installing, activate it with the following command:
+```
+duccorp@DESKTOP-RH0V9GH:~/RSA-Based-Cryptography$ source ~/miniforge3/bin/activate
+(base) duccorp@DESKTOP-RH0V9GH:~/RSA-Based-Cryptography$ conda activate sage
+(sage) duccorp@DESKTOP-RH0V9GH:~/RSA-Based-Cryptography$ sage
+┌────────────────────────────────────────────────────────────────────┐
+│ SageMath version 10.6, Release Date: 2025-03-31                    │
+│ Using Python 3.11.13. Type "help()" for help.                      │
+└────────────────────────────────────────────────────────────────────┘
+sage:
+```
+
+You can check your SageMath version by 
+```
+(sage) duccorp@DESKTOP-RH0V9GH:~/RSA-Based-Cryptography$ sage --version
+SageMath version 10.6, Release Date: 2025-03-31
+```
+In Visual Studio Code, press `Ctrl+Shift+P` and choose the correct Python interpreter before coding. 
+
+<img width="746" height="89" alt="{034810DA-A092-4093-81BE-1FA88BCB7E2F}" src="https://github.com/user-attachments/assets/c65b8d6f-22d3-4503-88b9-9daa00dbe653" />
+
+Import it with 
+```python
+from sage.all import * 
+```
+- Pycryptodome
 
 Docs and installation guide of the library: https://pycryptodome.readthedocs.io/en/latest/src/introduction.html. PyCryptodome provides many cryptographic functions for working with RSA
 
+```
 # References
 - [Twenty Years of Attacks on the RSA Cryptosystem, Dan Boneh](https://crypto.stanford.edu/~dabo/papers/RSA-survey.pdf)
 - [Introduction to Modern Cryptography, Second Edition](https://eclass.uniwa.gr/modules/document/file.php/CSCYB105/Reading%20Material/%5BJonathan_Katz%2C_Yehuda_Lindell%5D_Introduction_to_Mo%282nd%29.pdf)
