@@ -19,7 +19,7 @@ We begin with a discussion of one of the oldest problems: integer factorization 
 $$pq = N$$
 
 Factoring large integers is considered difficult and the security of the RSA cryptosystem is fundamentally based on the hardness of this problem. 
-## The Factoring Assumtion
+## The Factoring Assumption
 
 Let $\text{GenModulus}$ be a polynomial-time algorithm that, on input $1^n$, outputs $(N,p,q)$ where $N=pq$ and $p$ and $q$ are two $n$-bit primes except with probability negligible in $n$.  Then we consider the following experiment for a given algorithm $\mathcal{A}$ and parameter $n$: 
 
