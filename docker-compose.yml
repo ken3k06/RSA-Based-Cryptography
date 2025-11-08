@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  http_server_b:
+    build:
+      context: ./docker/http_server_b
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./docker/http_server_b:/app
+    hostname: http_server_b
+    networks:
+      - rsa_lab_net
+
+  tls_server:
+    build:
+      context: ./docker/tls_server
+    ports:
+      - "4433:4433"
+    hostname: tls_server
+    networks:
+      - rsa_lab_net
+
+  http_server_c:
+    build:
+      context: ./docker/http_server_c
+    ports:
+      - "8000:8000"
+    hostname: http_server_c
+    volumes:
+      - http_server_c_keys:/app/keys
+    networks:
+      - rsa_lab_net
+
+  attack:
+    build:
+      context: ./docker/attack
+    volumes:
+      - ./poc:/app/poc
+    tty: true
+    depends_on:
+      - http_server_b
+      - http_server_c
+      - tls_server
+    networks:
+      - rsa_lab_net
+
+volumes:
+  http_server_c_keys:
+    driver: local
+
+networks:
+  rsa_lab_net:
+    driver: bridge
