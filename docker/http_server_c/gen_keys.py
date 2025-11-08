@@ -41,14 +41,7 @@ def generate_vulnerable_rsa(bits=KEY_BITS, scale=SCALE, max_tries=MAX_TRIES):
         n4 = integer_nth_root(n, 4)
         if n4 <= 3:
             continue
-
-        # Start with a base d candidate then try decreasing to find a suitably small d
         d_base = max(3, n4 // scale)
-
-        # We'll try a sequence of candidates: d_base, d_base-2, d_base-4, ...
-        # and also try slightly larger bases if necessary (rare)
-        found = False
-        # limit number of dec attempts per p,q to avoid huge loops
         max_dec = min(d_base - 3 if d_base > 3 else 0, 10000)
         for dec in range(0, max_dec + 1, 2):
             d_candidate = d_base - dec
@@ -60,16 +53,10 @@ def generate_vulnerable_rsa(bits=KEY_BITS, scale=SCALE, max_tries=MAX_TRIES):
                 e = pow(d_candidate, -1, phi)
             except ValueError:
                 continue
-            # check Wiener-friendly heuristic: d < ~ (1/3) * n^(1/4)
             if d_candidate < max(3, n4 // 3):
-                # double-check sanity of e
                 if 1 < e < phi:
-                    # success
                     return {"n": n, "e": e, "d": d_candidate, "p": p, "q": q, "attempts": attempt}
-            # else continue trying smaller d for same p,q
 
-        # Optionally try slightly larger starting base if dec loop didn't find
-        # try a few different bases (scale variations)
         for alt_scale in (scale+1, scale+2, max(1, scale-1)):
             d_base_alt = max(3, n4 // alt_scale)
             max_dec_alt = min(d_base_alt - 3 if d_base_alt > 3 else 0, 2000)
@@ -87,7 +74,6 @@ def generate_vulnerable_rsa(bits=KEY_BITS, scale=SCALE, max_tries=MAX_TRIES):
                     if 1 < e < phi:
                         return {"n": n, "e": e, "d": d_candidate, "p": p, "q": q, "attempts": attempt}
 
-    # If loop ends
     raise RuntimeError(f"Failed to generate vulnerable RSA within {max_tries} attempts")
 
 def save_keys(info):

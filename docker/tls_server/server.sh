@@ -14,7 +14,6 @@ CANDIDATES=(
 
 OPENSSL_BIN=""
 
-# Try explicit candidates first
 for p in "${CANDIDATES[@]}"; do
   if [ -x "$p" ]; then
     OPENSSL_BIN="$p"
@@ -22,7 +21,6 @@ for p in "${CANDIDATES[@]}"; do
   fi
 done
 
-# If not found, try which
 if [ -z "$OPENSSL_BIN" ]; then
   which_path=$(which openssl 2>/dev/null || true)
   if [ -n "$which_path" ] && [ -x "$which_path" ]; then
@@ -30,7 +28,6 @@ if [ -z "$OPENSSL_BIN" ]; then
   fi
 fi
 
-# Extra fallback: try /usr/local/ssl/bin/openssl
 if [ -z "$OPENSSL_BIN" ] && [ -x "/usr/local/ssl/bin/openssl" ]; then
   OPENSSL_BIN="/usr/local/ssl/bin/openssl"
 fi
@@ -43,7 +40,6 @@ fi
 
 echo "[*] Using openssl binary: $OPENSSL_BIN"
 
-# Create cert if necessary
 if [ ! -f "$CERT_KEY" ]; then
   echo "[*] Generating self-signed certificate (key size: $KEY_SIZE)..."
   "$OPENSSL_BIN" req -x509 -nodes -days 365 \
@@ -58,7 +54,6 @@ echo "Starting OpenSSL TLS server on port 4433..."
 CIPHER_NAME="AES128-SHA"
 echo "Cipher: $CIPHER_NAME"
 
-# Run server (keep in foreground)
 exec "$OPENSSL_BIN" s_server \
   -accept 4433 \
   -cert "$CERT_KEY" \
