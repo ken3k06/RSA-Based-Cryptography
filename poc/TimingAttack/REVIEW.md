@@ -143,7 +143,137 @@ Trong đa số các trường hợp khác thì số lượng bit sai lệch là 
 
 # Cải tiến
 
-## Trường hợp thứ nhất
+## Trường hợp thứ nhất: Các MSB đầu trùng nhau
+
+Nếu xảy ra trường hợp có một số lượng lớn các MSB đầu trùng nhau, chẳng hạn: 
+
+<img width="744" height="965" alt="image" src="https://github.com/user-attachments/assets/c44357c6-3ad2-45e0-a6ae-33478e435dc3" />
+
+Thì ta có thể dùng kĩ thuật được đề cập trong bài báo sau đây để bẻ khóa hệ mật RSA: 
+[Small Public Exponent Brings More: Improved Partial Key Exposure Attacks against RSA](https://eprint.iacr.org/2024/1329.pdf)
+
+Định lý 1 phát biểu như sau:
+
+**Định lý:** Cho hệ mật n-bit RSA với modulo $\displaystyle N=pq$ trong đó $\displaystyle q< p< 2q$ và $\displaystyle p-q= N^{\frac{1}{2} -\theta }$ trong đó $\displaystyle 0< \theta < \frac{1}{4}$ và $\displaystyle e=N^{\alpha }$ số mũ công khai RSA với $\displaystyle \alpha < \frac{1}{4}$. Đặt $\displaystyle d=N^{\delta }$ trong đó $\displaystyle d$ chính là số mũ bí mật RSA thỏa mãn $\displaystyle ed\equiv 1(\bmod( p-1)( q-1))$. Với $\displaystyle d_{0}$ là một xấp xỉ của $\displaystyle d$ thỏa mãn $\displaystyle |d-d_{0} |< N^{\gamma }$. Nếu ta biết thông tin về $\displaystyle d_{0}$ thì ta có thể phân tích thừa số nguyên tố $\displaystyle N$ trong thời gian đa thức nếu như: 
+
+$$
+\begin{equation*}
+\gamma < \delta +\alpha -\theta -\frac{3}{4}
+\end{equation*}
+$$
+
+
+
+<img width="726" height="144" alt="image" src="https://github.com/user-attachments/assets/46b1ed41-9139-4a1e-b785-4464fbdeadf6" />
+
+Với $e=65537$ và modulo $n$ có độ lớn 1024 bit 
+
+Từ điều kiện 
+
+$$
+\begin{equation*}
+|d-d_{0} |< N^{\gamma } ,\ \gamma < \delta +\alpha -\theta -\frac{3}{4}
+\end{equation*}
+$$
+
+Ta tính được số MSB cần thiết để khôi phục lại d như sau: 
+
+Giả sử ta biết được $\displaystyle L$ MSB đầu của $\displaystyle d$ chính là $\displaystyle d_{0}$. Thì lúc này 
+
+$$
+\begin{gather*}
+|d-d_{0} |< 2^{n-L} =2^{n} 2^{-L} \sim N2^{-L} =N^{1-L/n}\\
+\Longrightarrow \gamma \sim 1-\frac{L}{n}
+\end{gather*}
+$$
+
+Mà từ $\displaystyle \ \gamma < \delta +\alpha -\theta -\frac{3}{4}$ ta suy ra 
+
+$$
+\begin{equation*}
+\frac{L}{n}  >\frac{7}{4} -\delta -\alpha +\theta 
+\end{equation*}
+$$
+
+Với $\displaystyle e=65537$ nhỏ thì $\displaystyle \delta \sim 1$ do $\displaystyle d$ lớn và hơn hết $\displaystyle p,q$ được sinh theo tiêu chuẩn và có $\displaystyle \theta \sim 0$. Từ đây ta có thể xét 
+
+$$
+\begin{equation*}
+L >n\left(\frac{3}{4} -\alpha \right)
+\end{equation*}
+$$
+
+Với $\displaystyle \alpha =\frac{log_{2}( e)}{log_{2}( N)} \sim \frac{16}{1024} =0.015625$ thì ta có 
+
+$$
+\begin{equation*}
+L >0.734375\times 1024\sim 752
+\end{equation*}
+$$
+
+Vậy ta cần biết được ít nhất là $\displaystyle 752$ MSB của $\displaystyle d_{0}$ để có thể khôi phục lại $\displaystyle d$. 
+
+Ta có thể thử demo một trường hợp như sau: 
+
+
+```python
+import time
+import logging
+from attacks.rsa.fnp import attack
+from shared.partial_integer import PartialInteger
+from sage.all import inverse_mod, next_prime, ZZ, PolynomialRing
+
+logging.basicConfig(filename='attack.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+p=7574549438594602947916381661341324418847044954985441522282037156104740174840171156997363512275017589563515452727020685781080486409940827106768405176900421
+q=9970598644345013977897839320766815949743231019225602345229756053597783349067472853383228934444309387945869937287308180451323940137496715758890046325910153
+N=75522792363975634850806847194815276560209889276663760591114529719605903546230023554630324910395438937331646351431533159399126123167644926133888263020892870885733908195509322385393046826503701316104357415521683686189269763222034867442000759015304386210301619559134560681719942503299368975051896878974273874413
+phi = (p - 1) * (q - 1)
+
+ebits = 17
+msbs = 752
+enumeration = 6
+m=75
+thetaLogN = 2
+ 
+e = 2**(ebits-1) + 1
+d = inverse_mod(e, phi)
+k= int((e*d-1)/phi)
+
+ifFlatter = True
+
+start_time = time.time()
+result = attack(N, e, PartialInteger.msb_of(d, 1024, msbs), m=m, k=k, thetaLogN=thetaLogN,  enumeration=enumeration, ifFlatter=ifFlatter, p=p)
+print(result)
+print("Time:",time.time()-start_time)
+
+
+# ebits MSBs m thetaLogN time
+# 17 758 55 2 14.34
+# 17 756 100 2 126.67
+
+'''
+
+ebits = 17
+msbs = 752
+enumeration = 6
+m=75
+thetaLogN = 2
+
+ebits = 129
+msbs = 640
+enumeration = 6
+m=75
+thetaLogN = 2
+
+ebits = 257
+msbs = 512
+enumeration = 8
+m=75
+thetaLogN = 4
+'''
+```
+<img width="748" height="817" alt="image" src="https://github.com/user-attachments/assets/a91d3931-5df0-48ac-b918-e0b4b668bb42" />
 
 
 
