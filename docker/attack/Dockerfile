@@ -1,7 +1,7 @@
 FROM python:3.10-slim
 
-RUN apt-get update && apt-get install -y \
-    libgmp-dev \
+RUN apt-get update \
+    && apt-get update && apt-get install -y netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install \
@@ -9,7 +9,8 @@ RUN pip install \
     gmpy2 \
     pycryptodome \
     tlslite-ng\
-    pyjwt
+    pyjwt\
+    cryptography
 
 WORKDIR /app
 

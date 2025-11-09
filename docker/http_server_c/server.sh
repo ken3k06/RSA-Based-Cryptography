@@ -18,3 +18,4 @@ fi
 echo "[*] Starting Flask server..."
 # Chạy Flask server (không debug, binding 0.0.0.0)
 exec python /app/server.py
+

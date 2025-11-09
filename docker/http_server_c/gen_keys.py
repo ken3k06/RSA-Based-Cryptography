@@ -27,7 +27,7 @@ def integer_nth_root(n: int, k: int) -> int:
             hi = mid - 1
     return lo
 
-def generate_vulnerable_rsa(bits=KEY_BITS, scale=SCALE, max_tries=MAX_TRIES):
+def gen_rsa(bits=KEY_BITS, scale=SCALE, max_tries=MAX_TRIES):
     half = max(8, bits // 2)
     attempt = 0
     while attempt < max_tries:
@@ -90,5 +90,5 @@ def save_keys(info):
 
 if __name__ == "__main__":
     print("[*] Generating vulnerable RSA keypair (lab use only!)")
-    info = generate_vulnerable_rsa()
+    info = gen_rsa()
     save_keys(info)

@@ -13,13 +13,15 @@ services:
       - rsa_lab_net
 
   tls_server:
-    build:
-      context: ./docker/tls_server
+    build: ./docker/tls_server
+    container_name: tls_server
     ports:
       - "4433:4433"
-    hostname: tls_server
+    volumes:
+      - ./poc/keys:/app/keys   # mount chỗ chứa server.pem nếu bạn muốn generate bên ngoài
     networks:
       - rsa_lab_net
+
 
   http_server_c:
     build:
@@ -37,11 +39,12 @@ services:
       context: ./docker/attack
     volumes:
       - ./poc:/app/poc
+      - ./logs:/app/logs
     tty: true
     depends_on:
-      - http_server_b
       - http_server_c
       - tls_server
+      - http_server_b
     networks:
       - rsa_lab_net
 
