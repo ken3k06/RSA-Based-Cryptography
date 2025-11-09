@@ -10,12 +10,21 @@ n = p * q
 
 e = 65537
 d = pow(e,-1,(p-1)*(q-1))
+print(bin(d)[2:])
 
-# print(bin(d)[2:])
-# print(f"p={p}")
-# print(f"q={q}")
-# print(f"n={n}")
-# print(f"d={d}")
+
+print(f"p={p}")
+print(f"q={q}")
+print(f"n={n}")
+print(f"d={d}")
+def check_diff(bin1:str,bin2:str) -> int:
+    count = 0
+    for i,(a,b) in enumerate(zip(bin1,bin2)):
+        if a!=b:
+            count +=1
+            print(f"diff at {i}")
+    return count 
+
 
 def decrypt_rsa(c, d, n):
     c %= n
@@ -40,7 +49,7 @@ def decrypt_rsa(c, d, n):
 if __name__ == "__main__":
     results = []
 
-    for i in range(500):
+    for i in range(750):
         m = random.randint(2, n - 2)
         c = pow(m, e, n)
 
@@ -59,3 +68,42 @@ if __name__ == "__main__":
 
     with open("output.json", "w") as f:
         json.dump(results, f, indent=2)
+
+
+
+    import json
+    import statistics
+
+    with open("output.json", "r") as f:
+        runs = json.load(f)
+
+    num_runs = len(runs)
+    num_bits = len(runs[0]["per_bit_time_ns"])
+
+    mean_per_bit = []
+    for bit_idx in range(num_bits):
+        samples = [runs[r]["per_bit_time_ns"][bit_idx] for r in range(num_runs)]
+        mean_t = statistics.mean(samples)
+        mean_per_bit.append(mean_t)
+
+    base_threshold = statistics.median(mean_per_bit)
+
+    def recover_bits(threshold):
+        return "".join(
+            "1" if mean_t > threshold else "0"
+            for mean_t in mean_per_bit
+        )
+
+    print("Số lần đo:", num_runs)
+    print("Số bit của d quan sát được:", num_bits)
+    print("Ngưỡng median:", base_threshold)
+    rec_median = recover_bits(base_threshold)
+    print("\n[median] Chuỗi bit d khôi phục ")
+    print(rec_median)
+
+    a = str(bin(d)[2:])
+    b = str(rec_median)
+    print(check_diff(a,b))
+
+
+
