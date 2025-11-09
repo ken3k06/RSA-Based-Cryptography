@@ -68,4 +68,5 @@ Docs and installation guide of the library: https://pycryptodome.readthedocs.io/
 - [Modulus Fault Attacks Against RSA-CRT Signatures](https://eprint.iacr.org/2011/388.pdf)
 - [New Partial Key Exposure Attacks on RSA](https://www.iacr.org/archive/crypto2003/27290027/27290027.pdf)
 - [Small Public Exponent Brings More: Improved Partial Key Exposure Attacks against RSA](https://eprint.iacr.org/2024/1329.pdf)
-
+- [Cache-Timing Attacks on RSA Key Generation](https://d-nb.info/1205895671/34)
+- [Timing Attacks on Software Implementation of RSA](https://ir.library.oregonstate.edu/downloads/fn106z04s)
