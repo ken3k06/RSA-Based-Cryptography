@@ -1,17 +1,16 @@
-FROM python:3.10-slim
+# docker/attack/Dockerfile
+FROM python:3.11-slim
 
-RUN apt-get update \
-    && apt-get update && apt-get install -y netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN pip install \
-    requests \
-    gmpy2 \
-    pycryptodome \
-    tlslite-ng\
-    pyjwt\
-    cryptography
+ENV PYTHONUNBUFFERED=1 LANG=C.UTF-8
 
 WORKDIR /app
 
-CMD ["sleep", "infinity"]
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential gcc libgmp-dev netcat-openbsd curl \
+  && rm -rf /var/lib/apt/lists/*
+
+# preinstall common libs used by PoCs (helps reliability)
+RUN pip install --no-cache-dir pycryptodome gmpy2 requests tlslite-ng cryptography pyjwt || true
+
+# default sleep to keep container alive if no command
+CMD ["bash", "-lc", "sleep infinity"]

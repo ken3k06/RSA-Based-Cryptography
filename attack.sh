@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 if [ -z "$1" ]; then
-    docker-compose exec attacker bash
+    docker-compose exec attack bash
 else
     case "$1" in
         "A"|"attackA"|"a")
             echo "--> Đang chạy Attack A (Bleichenbacher PoC trên server TLS thật)..."
-            docker-compose exec attack python poc/Bleichenbacher/attackA-bleichenbacher.py
+            docker-compose exec attack bash -lc poc/Bleichenbacher/attack.sh
             ;;
 
         "B"|"attackB"|"b")

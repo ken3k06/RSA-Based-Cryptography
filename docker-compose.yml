@@ -12,16 +12,27 @@ services:
     networks:
       - rsa_lab_net
 
-  tls_server:
-    build: ./docker/tls_server
-    container_name: tls_server
+  # tls-like oracle (socket based) for Bleichenbacher PoC
+  tls_like_server:
+    build:
+      context: ./docker/tls_like_server
+    container_name: tls_like_server
     ports:
-      - "4433:4433"
+      - "1337:1337"
     volumes:
-      - ./poc/keys:/app/keys   # mount chỗ chứa server.pem nếu bạn muốn generate bên ngoài
+      - ./poc:/app/poc                 # public key visible here
+    environment:
+      - HOST=0.0.0.0
+      - PORT=1337
+      - PUB_DIR=/app/poc/Bleichenbacher
+      - PRIVATE_DIR=/app/keys
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'nc -z localhost 1337 || exit 1'"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
     networks:
       - rsa_lab_net
-
 
   http_server_c:
     build:
@@ -37,16 +48,26 @@ services:
   attack:
     build:
       context: ./docker/attack
+    container_name: attack       # giữ tên 'attack' để khớp attack.sh
     volumes:
       - ./poc:/app/poc
       - ./logs:/app/logs
-    tty: true
+      - ./poc/Bleichenbacher/attack.sh:/app/attackA.sh:ro   # optional: mount script
     depends_on:
-      - http_server_c
-      - tls_server
+      - tls_like_server
       - http_server_b
+      - http_server_c
+    environment:
+      - ORACLE_HOST=tls_like_server
+      - ORACLE_PORT=1337
+      - KEY_PATH=/app/poc/Bleichenbacher/public.pem
+    # keep container alive, do NOT auto-run attack
+    command: ["bash", "-lc", "sleep infinity"]
+    stdin_open: true
+    tty: true
     networks:
       - rsa_lab_net
+
 
 volumes:
   http_server_c_keys:
