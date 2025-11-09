@@ -414,3 +414,16 @@ $$
 $$
 
 Điều mâu thuẫn này chứng tỏ trong 3 phân số liên tiếp phải có một phân số thoả mãn tính chất của định lý.
+
+# Kết luận 
+Từ đánh giá:
+
+$$
+\begin{equation*}
+\Bigl|\frac{e}{N} -\frac{k}{d}\Bigl| < \frac{1}{2d^{2}}
+\end{equation*}
+$$
+
+và định lý ở trên về xấp xỉ liên phân số,ta có được rằng $\displaystyle \frac{k}{d}$ là một giản phân trong biểu diễn liên phân số của $\displaystyle \frac{e}{N}$. Bằng cách viết $\displaystyle \frac{e}{N}$ về dưới dạng liên phân số hữu hạn và kiểm tra xem nó có đúng bằng $\displaystyle \frac{k}{d}$ hay không. Lưu ý rằng $\displaystyle \frac{k}{d}$ đã là phân số tối giản rồi cho nên ta chỉ cần kiểm tra trực tiếp xem nó có bằng một trong số các giản phân hay không. 
+
+Sau khi tìm được $k,d$ ta có thể tính lại $\varphi(N)=pq-p-q+1$ và giải phương trình $\displaystyle x^{2} -( N-\varphi ( N) +1) +N=0$ thu được hai nghiệm nguyên dương $\displaystyle p,q$ cũng chính là các thừa số nguyên tố cần tìm. 
