@@ -66,3 +66,7 @@ Docs and installation guide of the library: https://pycryptodome.readthedocs.io/
 - [Introduction to Modern Cryptography, Second Edition](https://eclass.uniwa.gr/modules/document/file.php/CSCYB105/Reading%20Material/%5BJonathan_Katz%2C_Yehuda_Lindell%5D_Introduction_to_Mo%282nd%29.pdf)
 - [Chosen Ciphertext Attacks Against Protocols Based on the RSA Encryption Standard PKCS #1](https://archiv.infsec.ethz.ch/education/fs08/secsem/bleichenbacher98.pdf)
 - [Modulus Fault Attacks Against RSA-CRT Signatures](https://eprint.iacr.org/2011/388.pdf)
+- [New Partial Key Exposure Attacks on RSA](https://www.iacr.org/archive/crypto2003/27290027/27290027.pdf)
+- [Small Public Exponent Brings More: Improved Partial Key Exposure Attacks against RSA](https://eprint.iacr.org/2024/1329.pdf)
+
+- 
