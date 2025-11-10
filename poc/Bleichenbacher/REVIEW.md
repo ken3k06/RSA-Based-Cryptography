@@ -90,3 +90,95 @@ M_{i} \leftarrow \bigcup_{( a,b,r)}
 \end{gather*}$$
 
 **Bước 4.** Khi chỉ còn lại $\displaystyle M=[ a,b]$ thì ta sẽ kiểm tra xem $\displaystyle m\leftarrow a( s_{0})^{-1}\bmod n$ có phải giá trị ta mong muốn không. Nếu không thì tăng $\displaystyle i=i+1$.
+
+# Khắc phục 
+
+
+## 1. Cập nhật giao thức & loại bỏ RSA key transport cũ
+
+Bleichenbacher không khai thác “RSA yếu”, mà khai thác:
+- RSA key transport dùng **PKCS#1 v1.5** để mã hoá.
+- Server trả về phản hồi/lỗi khác nhau tùy ciphertext có padding hợp lệ hay không ⇒ thành padding oracle.
+
+**Mục tiêu:** Không để server trở thành oracle cho biết “padding đúng/sai”.
+
+### 1.1. Ưu tiên TLS hiện đại
+
+**TLS 1.3**
+
+- Không dùng RSA để mã hoá premaster secret.
+- Chỉ (EC)DHE cho key exchange, RSA chỉ dùng để ký.
+- Không còn PKCS#1 v1.5 trong quá trình trao đổi khoá ⇒ Bleichenbacher-style attack bị loại bỏ ở tầng thiết kế.
+
+**Khuyến nghị:** Nâng cấp lên TLS 1.3 và tắt TLS 1.0/1.1, hạn chế TLS 1.2 nếu có thể.
+
+### 1.2. TLS 1.2 an toàn hơn
+
+Nếu buộc dùng TLS 1.2:
+
+- **Tắt hoàn toàn các cipher suite `TLS_RSA_*`** (RSA key transport).
+- Chỉ cho phép:
+  - `TLS_ECDHE_RSA_*`
+  - `TLS_DHE_RSA_*`
+- Khi đó RSA chỉ dùng để ký, không còn pha “decrypt + kiểm tra PKCS#1 v1.5” ⇒ không có padding oracle.
+
+**Kết luận ngắn:** Các cấu hình TLS cũ với RSA key transport là nguồn gốc trực tiếp của Bleichenbacher, cần loại bỏ trong môi trường production.
+
+---
+
+## 2. Thay PKCS#1 v1.5 bằng padding an toàn hơn
+
+Ngoài TLS, nhiều hệ thống custom vẫn dùng “RSA + PKCS#1 v1.5” để mã hoá.
+
+**Khuyến nghị:**
+
+- Sử dụng **RSAES-OAEP** (PKCS#1 v2.x) thay cho PKCS#1 v1.5.
+- OAEP được thiết kế để đạt IND-CCA2 ⇒ chống được padding oracle cổ điển.
+
+**Nguyên tắc:** Thiết kế mới / protocol mới ⇒ dùng OAEP hoặc KEM hiện đại, không dùng PKCS#1 v1.5 cho encryption.
+
+---
+
+## 3. Khi buộc phải giữ PKCS#1 v1.5 (legacy mitigation)
+
+Nếu phải hỗ trợ client/device cũ, cần tránh biến implementation thành oracle.
+
+### 3.1. Thông báo lỗi đồng nhất
+
+- Không phân biệt:
+  - padding sai,
+  - MAC sai,
+  - version sai,
+  - key derivation sai.
+- Tất cả lỗi:
+  - Trả về cùng loại alert/thông báo.
+  - Hành vi giống nhau (đóng kết nối, log chung, không tiết lộ lý do cụ thể).
+
+### 3.2. Kiểm tra padding theo constant-time
+
+- Không dừng sớm khi gặp byte sai.
+- Luôn:
+  - Đọc đủ độ dài.
+  - Kiểm tra toàn bộ padding, tích luỹ lỗi bằng mask.
+  - Quyết định hợp lệ/sai ở cuối.
+- Thời gian xử lý không được phụ thuộc rõ rệt vào vị trí sai padding.
+
+### 3.3. Dummy premaster secret
+
+Cách vá chuẩn (TLS):
+
+- Nếu padding hoặc version check sai:
+  - Sinh một premaster secret ngẫu nhiên.
+  - Tiếp tục tính master secret và xử lý như bình thường.
+- Từ góc nhìn attacker:
+  - Không phân biệt được ciphertext có padding đúng hay sai dựa trên phản hồi.
+
+### 3.4. Hạn chế & giám sát truy vấn
+
+- Giới hạn số lần giải mã / IP / session.
+- Log các mẫu truy vấn lặp lại, nhiều ciphertext lỗi.
+- Dùng WAF/IDS để chặn hành vi giống Bleichenbacher scan.
+
+---
+
+
