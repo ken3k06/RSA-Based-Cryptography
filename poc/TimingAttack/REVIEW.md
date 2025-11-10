@@ -1,3 +1,33 @@
+# Ngữ cảnh
+Timing attack là dạng side-channel attack trong đó kẻ tấn công **không phá vỡ trực tiếp thuật toán mật mã**, mà khai thác:
+- Thời gian thực thi khác nhau
+- Do việc triển khai (implementation) phụ thuộc vào **giá trị bí mật**: khóa, bit của $d$, nhánh if, v.v.
+
+
+Timing attack khả thi khi hội đủ các điều kiện sau:
+
+1. **Có oracle / service thực thi phép toán mật mã**
+   - Ví dụ:
+     - Server cung cấp API giải mã RSA.
+     - Thiết bị IoT / smartcard thực hiện ký số / giải mã.
+     - TLS server dùng RSA private key để giải mã pre-master secret.
+
+2. **Kẻ tấn công có thể gửi nhiều input tùy ý**
+   - Chọn ciphertext khác nhau để đo.
+   - Gửi nhiều lần cùng một ciphertext để giảm nhiễu.
+ 
+
+3. **Đo được thời gian đủ chính xác**
+   - Có thể là:
+     - Local (cùng máy, cùng LAN) ⇒ độ chính xác cao.
+     - Remote (qua mạng) ⇒ phải lấy **nhiều mẫu**, xử lý thống kê để triệt nhiễu.
+   - Thời gian đo có tương quan với:
+     - Bit của khóa bí mật.
+     - Cấu trúc nhánh của thuật toán (square only vs square+multiply).
+     - Việc xảy ra lỗi, early return, cache miss/hit,...
+
+
+
 # Modular Exponentiation
 
 Trong quá trình thực hiện giải mã và mã hóa trong hệ mật mã RSA ta đều cần thực hiện phép tính lũy thừa với số mũ lớn. Điều này đòi hỏi việc thiết kế một thuật toán giúp tăng tốc độ tính toán. 
