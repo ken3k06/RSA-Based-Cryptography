@@ -98,7 +98,7 @@ Nếu điều kiện $d < N^{1/4} / 3$ thỏa, có thể coi hệ thống **gầ
 ## 7. Phòng tránh
 
 - **Không bao giờ chọn $d$ nhỏ** một cách tùy tiện.
-- Tuân thủ chuẩn sinh khóa RSA (FIPS, PKCS#1).
+- Tuân thủ chuẩn sinh khóa RSA (FIPS)
 - Dùng CRT-RSA đúng cách: tối ưu hiệu năng bằng $d_p, d_q$, không phải bằng cách làm $d$ toàn cục quá nhỏ.
 - Kiểm tra an toàn: nếu phát hiện $d$ (hoặc thiết kế) vi phạm điều kiện Wiener → **thu hồi, thay khóa**.
 
