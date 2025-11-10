@@ -1,5 +1,42 @@
-# Tài liệu
-[1] [Chosen Ciphertext Attacks Against Protocols Based on the RSA Encryption Standard PKCS #1](https://archiv.infsec.ethz.ch/education/fs08/secsem/bleichenbacher98.pdf)
+# Ngữ cảnh 
+Bleichenbacher padding oracle attack xuất hiện trong bối cảnh hệ thống:
+
+- Sử dụng **RSA để mã hóa trực tiếp** (RSA key transport), với **padding PKCS#1 v1.5**.
+- Có một thành phần (server, HSM, smartcard, API...) làm nhiệm vụ:
+  1. Giải mã bản mã RSA.
+  2. Kiểm tra padding có đúng định dạng PKCS#1 v1.5 hay không.
+  3. Phản hồi theo cách **khác nhau** tùy thuộc vào kết quả kiểm tra.
+
+Nếu kẻ tấn công có thể:
+- Gửi **nhiều ciphertext tùy ý** đến server.
+- Và quan sát được **sự khác biệt** (trả về lỗi khác, alert khác, thời gian khác, đóng kết nối khác, v.v.) giữa:
+  - “Giải mã ra padding hợp lệ”
+  - và “Giải mã ra padding sai”
+
+thì server đó trở thành một **padding oracle**.
+
+Môi trường có thể triển khai tấn công:
+
+1. **TLS cũ với RSA key exchange**:
+   - Các cipher suite dạng `TLS_RSA_*` dùng RSA/PKCS#1 v1.5 mã hóa pre-master secret.
+   - Implementation trả về các TLS alert khác nhau cho lỗi padding/MAC/version.
+   - Đây là mục tiêu kinh điển của Bleichenbacher (và các biến thể như ROBOT).
+
+2. **Giao thức tự thiết kế (custom protocol)**:
+   - Endpoint kiểu `/decrypt` hoặc service nội bộ:
+     - Nhận ciphertext,
+     - Giải mã bằng RSA PKCS#1 v1.5,
+     - Nếu padding sai → trả về thông báo rõ ràng (`"invalid padding"`),
+     - Nếu OK → xử lý tiếp.
+   - Cách xử lý lỗi như vậy cung cấp oracle hoàn hảo.
+
+3. **Thiết bị phần cứng / HSM / smartcard / IoT**:
+   - Cung cấp API giải mã RSA với thông báo lỗi chi tiết hoặc timing khác biệt.
+   - Nếu không che giấu nguyên nhân lỗi, cũng có thể bị khai thác.
+
+
+
+
 
 
 # Thuật toán 
@@ -181,4 +218,6 @@ Cách vá chuẩn (TLS):
 
 ---
 
+# Tài liệu
+[1] [Chosen Ciphertext Attacks Against Protocols Based on the RSA Encryption Standard PKCS #1](https://archiv.infsec.ethz.ch/education/fs08/secsem/bleichenbacher98.pdf)
 
