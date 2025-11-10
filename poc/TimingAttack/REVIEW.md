@@ -276,6 +276,7 @@ thetaLogN = 4
 ```
 <img width="748" height="817" alt="image" src="https://github.com/user-attachments/assets/a91d3931-5df0-48ac-b918-e0b4b668bb42" />
 
+# Khắc phục 
 
 
 
