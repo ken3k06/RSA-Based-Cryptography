@@ -4,6 +4,7 @@ Trong quá trình thực hiện giải mã và mã hóa trong hệ mật mã RSA
 Một thuật toán thường được sử dụng trước đây đó chính là Square and Multiply. 
 
 Chi tiết thuật toán như sau: 
+
 <img width="708" height="353" alt="image" src="https://github.com/user-attachments/assets/3d423c9d-753b-49ea-97a2-93ee5a49ea7c" />
 
 Trong đó $e$ là số mũ và $e_i$ chính là các chữ số của nó trong biểu diễn nhị phân:
