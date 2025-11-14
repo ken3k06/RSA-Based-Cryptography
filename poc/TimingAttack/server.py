@@ -2,6 +2,9 @@ from Crypto.Util.number import *
 import time
 import random
 import json
+import requests
+URL = "http://http_server_b:5000"
+
 
 p = getPrime(512)
 q = getPrime(512)
@@ -50,9 +53,10 @@ if __name__ == "__main__":
 
     for i in range(750):
         m = random.randint(2, n - 2)
-        c = pow(m, e, n)
-
-        m_dec, times = decrypt_rsa(c, d, n)
+        data = requests.post(URL+"/decrypt",data={"m":m})
+        # c = pow(m, e, n)
+        print(json.dumps(data))
+        m_dec, times = json.dumps(data)
         ok = (m_dec == m)
 
         per_bit = [t[1] + t[2] for t in times]

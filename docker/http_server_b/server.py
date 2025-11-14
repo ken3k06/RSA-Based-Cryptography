@@ -11,75 +11,51 @@ import time
 
 app = Flask(__name__)
 
-KEY_FILE = 'server_key.pem'
-KEY_SIZE = 1024 # Dùng khóa 1024-bit cho PoC để chạy nhanh hơn
+p = getPrime(512)
+q = getPrime(512)
+n = p * q
 
-# Tạo hoặc tải khóa RSA
-if os.path.exists(KEY_FILE):
-    print("Loading existing RSA key...")
-    with open(KEY_FILE, 'r') as f:
-        key = RSA.import_key(f.read())
-else:
-    print(f"Generating new {KEY_SIZE}-bit RSA key...")
-    key = RSA.generate(KEY_SIZE)
-    with open(KEY_FILE, 'wb') as f:
-        f.write(key.export_key('PEM'))
+e = 65537
+d = pow(e,-1,(p-1)*(q-1))
+print(bin(d)[2:])
 
-# Tạo một "bí mật" và mã hóa nó để làm mục tiêu (c0)
-SECRET_MESSAGE = b'This is the secret pre-master-key!'
-# Padding thủ công theo PKCS#1 v1.5 (cho mục đích demo)
-# b'\x00\x02' + [padding string] + b'\x00' + [data]
-pad_len = KEY_SIZE//8 - len(SECRET_MESSAGE) - 3
-padded_secret = b'\x00\x02' + (b'A' * pad_len) + b'\x00' + SECRET_MESSAGE
 
-# Dùng raw RSA (textbook RSA) để mã hóa
-c0_int = pow(int.from_bytes(padded_secret, 'big'), key.e, key.n)
-TARGET_CIPHERTEXT_HEX = hex(c0_int)[2:]
-
-print(f"Target ciphertext (c0) for Attack A generated.")
-
-# --- Khóa bí mật cho MAC (Cho Attack B) ---
-HMAC_KEY = b'my_super_secret_hmac_key_12345'
-print(f"HMAC secret key for Attack B initialized.")
+print(f"p={p}")
+print(f"q={q}")
+print(f"n={n}")
+print(f"d={d}")
 
 
 # --- Các API endpoints ---
 
 # === Endpoint cho Attack B (Timing) ===
 
-@app.route('/check_mac', methods=['POST'])
-def check_mac():
-    """
-    --- LỖ HỔNG (Attack B) ---
-    Endpoint này so sánh MAC do user cung cấp với MAC đúng
-    bằng một hàm so sánh *không* constant-time,
-    dẫn đến timing leak.
-    """
-    data = request.json
+@app.route('/decrypt', methods=['POST'])
+def decrypt_rsa():
+    c = pow(m, e, n)
     try:
-        provided_mac_hex = data['mac']
-        message = data['message']
-        
-        # Server tính toán MAC đúng
-        correct_mac = hmac.new(HMAC_KEY, message.encode(), 'sha256').digest()
-        provided_mac = binascii.unhexlify(provided_mac_hex)
-        
-        # --- HÀM SO SÁNH CÓ LỖ HỔNG (VULNERABLE) ---
-        if len(correct_mac) != len(provided_mac):
-            return jsonify({'error': 'Invalid MAC length'}), 400
-            
-        for i in range(len(correct_mac)):
-            if correct_mac[i] != provided_mac[i]:
-                # Trả về ngay khi phát hiện byte sai
-                return jsonify({'error': 'Invalid MAC'}), 400
-            
-            # Giả lập một độ trễ nhỏ (5ms) cho MỖI BYTE ĐÚNG
-            # Đây chính là "kênh rò rỉ" (leakage channel)
-            time.sleep(0.005) 
-            
-        # Nếu tất cả các byte đều đúng:
-        return jsonify({'status': 'MAC OK'}), 200
+        c %= n
+        res = 1
+        bit_time = []
+        for bit in bin(d)[2:]:
+            t0 = time.perf_counter_ns()
+            res = (res * res) % n
+            t1 = time.perf_counter_ns()
+            sq_time = t1 - t0
 
+            mul_time = 0
+            if bit == '1':
+                t2 = time.perf_counter_ns()
+                res = (res * c) % n
+                t3 = time.perf_counter_ns()
+                mul_time = t3 - t2
+
+            bit_time.append((int(bit), sq_time, mul_time))
+            data = {
+                "res":res,
+                "bit_time":bit_time
+            }
+        return jsonify(data),200
     except Exception as e:
         return jsonify({'error': f'Invalid request: {str(e)}'}), 400
 
