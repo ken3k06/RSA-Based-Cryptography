@@ -10,7 +10,116 @@ Lecturer: Nguyễn Ngọc Tự
 - Gaps: While RSA is a widely accepted and used in public-key cryptosystem, improper implementations or usage of weak parameters can lead to vulnerabilities.
 - Motivations: To ensure the integrity and confidentiality of financial transactions and to maintain the trust of clients and stakeholders. 
 
-# Mathematical Background
+# Mathematical Background  
+
+## Encryption and Signature Schemes
+
+In this project we focus on **RSA-based encryption** and **RSA-based digital signatures**, with an emphasis on two signature variants: **PKCS#1 v1.5** and **RSASSA-PSS**.
+
+### 1. RSA Encryption
+
+An RSA key pair is generated as follows:
+
+- Choose two large primes $p, q$ and compute the modulus $N = p q$.
+- Compute $\varphi(N) = (p-1)(q-1)$.
+- Choose a public exponent $e$ such that $\gcd(e, \varphi(N)) = 1$.
+- Compute the private exponent $d$ such that $e \cdot d \equiv 1 \pmod{\varphi(N)}$.
+
+The **public key** is $(N, e)$ and the **private key** is $(N, d)$ (together with the factors $p, q$ for CRT optimization).
+
+- **Textbook RSA encryption (insecure in practice):**
+  - Encryption: $c = m^e \bmod N$  
+  - Decryption: $m = c^d \bmod N$
+  
+  Here $m$ is a number representing the plaintext (with $0 \le m < N$).  
+  Without padding, textbook RSA is deterministic and **not semantically secure** (vulnerable to chosen-plaintext and chosen-ciphertext attacks).
+
+- **RSA with padding (practical schemes):**
+  - Real-world RSA encryption **must** use padding schemes (e.g., PKCS#1 v1.5 encryption or OAEP).
+  - Padding adds randomness and structure to $m$ before exponentiation, making the scheme resistant to basic attacks and achieving stronger security notions (e.g., IND-CPA, IND-CCA under assumptions).
+
+
+---
+
+### 2. RSA Signature Schemes
+
+RSA signatures use the same key pair $(N, e)$, $(N, d)$ but **reverse the roles** of encryption and decryption:
+
+- Signing (with the private key): $s = m^d \bmod N$
+- Verification (with the public key): check $m \stackrel{?}{=} s^e \bmod N$
+
+In practice, $m$ is not the raw message but a padded/hash-encoded value.  
+Different signature schemes define different ways to **encode the hash** of a message before applying RSA.
+
+We focus on two main signature schemes:
+
+#### 2.1. RSA Signatures with PKCS#1 v1.5 (RSASSA-PKCS1-v1_5)
+
+PKCS#1 v1.5 has long been the most widely deployed RSA signature scheme in practice. The original definition of the RSASSA-PKCS1-v1_5 algorithm is given in RFC 3447, available at [https://datatracker.ietf.org/doc/html/rfc3447](https://datatracker.ietf.org/doc/html/rfc3447).
+
+High-level idea:
+
+1. Given a message $M$, compute its hash $H = \text{Hash}(M)$ (e.g., SHA-256).
+2. Build an encoded message (EM) of the form:
+   - `0x00 || 0x01 || 0xFF ... FF || 0x00 || T`
+   - where `T` is an ASN.1/DER encoding of the hash algorithm identifier and the hash value $H$.
+3. Interpret EM as an integer $m_{\text{EM}}$ and compute the signature:
+   - $s = m_{\text{EM}}^d \bmod N$.
+4. Verification recomputes EM from the message and checks:
+   - $s^e \bmod N$ equals the expected EM.
+
+**Properties:**
+
+- Deterministic: signing the same message twice yields the same signature.
+- Very widely supported (TLS, X.509 certificates, code signing, JWT RS256 in some libraries, etc.).
+- Known to be **fragile** if verification is not implemented strictly:
+  - Lenient parsing, acceptance of malformed paddings, or incorrect handling of the ASN.1 structure can lead to signature forgery attacks.
+  - Because of its structured deterministic padding, it is harder to prove security in a tight theoretical sense.
+
+
+#### 2.2. RSA Signatures with PSS (RSASSA-PSS)
+
+RSASSA-PSS (Probabilistic Signature Scheme) is a newer RSA signature scheme designed with **provable security** in mind.
+
+High-level idea:
+
+1. Given a message $M$, compute $H = \text{Hash}(M)$.
+2. Generate a random salt and build an encoded message (EM) using a randomized padding construction:
+   - EM combines $H$, the salt, and some fixed bits via a mask generation function (MGF).
+3. Interpret EM as an integer $m_{\text{EM}}$ and compute:
+   - $s = m_{\text{EM}}^d \bmod N$.
+4. Verification recomputes EM (including deriving/checking the salt structure) and checks:
+   - $s^e \bmod N$ equals the expected EM.
+
+**Properties:**
+
+- **Probabilistic:** signing the same message multiple times produces **different signatures** thanks to the random salt.
+- Comes with strong theoretical guarantees: under standard assumptions (e.g., hardness of RSA and properties of the hash/MGF), RSASSA-PSS can be proven secure against adaptive chosen-message attacks.
+- Recommended by modern standards for new applications:
+  - Often preferred over PKCS#1 v1.5 in new protocols and certificate profiles.
+
+In this project, PSS plays the role of a **“modern, more robust”** signature scheme that we can compare against PKCS#1 v1.5 in terms of:
+
+- Security guarantees,
+- Resistance to subtle parsing bugs,
+- Deployment challenges (library support, compatibility with existing systems).
+
+---
+
+### 3. Summary (RSA Encryption vs Signatures, PKCS#1 v1.5 vs PSS)
+
+- RSA defines a core mathematical primitive using $(N, e, d)$; **encryption** and **signatures** are different modes built on top.
+- Real-world security critically depends on **padding and encoding schemes**, not just on the hardness of factoring $N$.
+- **PKCS#1 v1.5 signatures**:
+  - Deterministic, widely deployed.
+  - Sensitive to implementation bugs and lenient parsing.
+- **RSASSA-PSS**:
+  - Randomized, with stronger theoretical security.
+  - Recommended as the preferred scheme for new designs and migrations.
+
+These schemes and their differences are central to our later sections on **attack experiments (Bleichenbacher, timing, fault attacks)** and on **deployment weakness analysis**.
+
+
 
 ## Factoring Problem in the Context of RSA
 
@@ -127,3 +236,4 @@ Docs and installation guide of the library: https://pycryptodome.readthedocs.io/
 - [Small Public Exponent Brings More: Improved Partial Key Exposure Attacks against RSA](https://eprint.iacr.org/2024/1329.pdf)
 - [Cache-Timing Attacks on RSA Key Generation](https://d-nb.info/1205895671/34)
 - [Timing Attacks on Software Implementation of RSA](https://ir.library.oregonstate.edu/downloads/fn106z04s)
+- [On the Security of the PKCS#1 v1.5 Signature Scheme](https://eprint.iacr.org/2018/855.pdf)
