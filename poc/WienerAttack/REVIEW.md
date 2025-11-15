@@ -21,7 +21,8 @@ ed \equiv 1 \pmod{\varphi(N)}.
 $$
 
 Trong triển khai an toàn, $d$ thường có kích thước gần $\varphi(N)$ (xấp xỉ $|N|$ bit).  
-Tuy nhiên, một số hệ thống cũ, thiết bị nhúng hoặc code tự viết có thể **cố tình chọn $d$ nhỏ để giải mã nhanh**, và đây là đúng vùng nguy hiểm của Wiener.
+Tuy nhiên, một số hệ thống cũ, thiết bị nhúng có thể xảy ra sai sót khiến giá trị của $d$ nhỏ và không đảm bảo an toàn. 
+
 
 ---
 
@@ -35,13 +36,8 @@ $$
 
 với giả thiết RSA chuẩn: $p, q$ có kích thước gần nhau.
 
-Nói nôm na:
 
-> Nếu $d$ nhỏ hơn cỡ $N^{1/4}$ (chia 3) thì hệ RSA gần như **chắc chắn bị phá** bằng Wiener's attack.
-
----
-
-## 4. Ý tưởng tấn công (trực giác)
+## 4. Ý tưởng tấn công
 
 Từ phương trình khóa:
 
@@ -55,16 +51,16 @@ $$
 \frac{e}{\varphi(N)} \approx \frac{k}{d}.
 $$
 
-Khi $d$ rất nhỏ, phân số $\dfrac{k}{d}$ xuất hiện như **một convergent** trong phân số liên tục (continued fraction) của $\dfrac{e}{N}$ (vì $\varphi(N) \approx N$).
+Khi $d$ rất nhỏ, phân số $\dfrac{k}{d}$ xuất hiện như một giản phân trong phân số liên tục (continued fraction) của $\dfrac{e}{N}$ (vì $\varphi(N) \approx N$).
 
-Thuật toán Wiener (rất gọn):
+Thuật toán Wiener :
 
 1. Tính continued fraction của $\dfrac{e}{N}$.
 2. Duyệt các convergent $\dfrac{k_i}{d_i}$.
 3. Với mỗi $d_i$, kiểm tra xem có suy ra được $\varphi(N)$ rồi $p, q$ hay không.
 4. Nếu đúng, ta khôi phục được toàn bộ khóa bí mật.
 
-Toàn bộ thuật toán chạy thời gian đa thức và cực nhanh trong thực tế.
+Toàn bộ thuật toán chạy thời gian đa thức và nhanh trong thực tế.
 
 ---
 
@@ -79,7 +75,7 @@ Wiener’s attack **không hiệu quả** nếu:
   - một vài bit của $d$ bị lật (bit flip),
   - side-channel timing, padding oracle, Bleichenbacher, v.v.
 
-Những trường hợp này thuộc phạm vi của Boneh–Durfee, Blömer–May, Ernst, Feng–Nitaj–Pan…, **không phải** Wiener's attack thuần túy.
+Những trường hợp này thuộc phạm vi của Boneh–Durfee, Blömer–May, Ernst, Feng–Nitaj–Pan…,
 
 ---
 
@@ -104,8 +100,4 @@ Nếu điều kiện $d < N^{1/4} / 3$ thỏa, có thể coi hệ thống **gầ
 
 ---
 
-## 8. Tóm tắt
 
-- Wiener's attack là tấn công **thuần toán học, không cần side-channel**.
-- Điều kiện chính: **$d$ quá nhỏ**.
-- Trong các hệ thống tuân chuẩn hiện đại (với $d$ đủ lớn), rủi ro từ Wiener's attack gần như bị loại bỏ hoàn toàn.
