@@ -7,7 +7,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_v1_5
 from Crypto.Random import get_random_bytes
 
-# --- 1. CÁC HÀM TIỆN ÍCH (Từ script của bạn) ---
+# --- 1. CÁC HÀM TIỆN ÍCH ---
 # Script của bạn import 'ceil_div' và 'floor_div' từ 'shared'
 # Chúng ta sẽ định nghĩa chúng ở đây cho tiện
 def ceil_div(a, b):
@@ -32,7 +32,7 @@ def _insert(M, a, b):
     M.append((a, b))
     return
 
-# --- 2. LOGIC TẤN CÔNG (Từ script của bạn) ---
+# --- 2. LOGIC TẤN CÔNG ---
 # Đây là toàn bộ thuật toán Bleichenbacher '98
 # (Các bước này được mô tả trong bleichenbacher98.pdf [cite: 930])
 
@@ -131,9 +131,9 @@ def attack(padding_oracle, n, e, c):
         M = _step_3(n, B, s, M)
         i += 1
 
-# --- 3. LOGIC KẾT NỐI (Phần "tay chân") ---
+# --- 3. LOGIC KẾT NỐI ---
 
-# Hàm này thực hiện việc "hỏi" oracle qua socket
+# Hàm này thực hiện hoir oracle qua socket
 def query_oracle(ciphertext_int, host, port, n_length_bytes):
     # Chuyển số nguyên về bytes, đảm bảo đúng độ dài
     c_bytes = ciphertext_int.to_bytes(n_length_bytes, 'big')
@@ -152,7 +152,7 @@ def query_oracle(ciphertext_int, host, port, n_length_bytes):
             # logging.error(f"Lỗi socket: {e}")
             return False
 
-# --- 4. HÀM MAIN ĐỂ CHẠY MỌI THỨ ---
+# --- 4. HÀM MAIN ---
 if __name__ == "__main__":
     # Cấu hình logging để xem tiến trình
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
