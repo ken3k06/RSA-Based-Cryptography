@@ -1,10 +1,15 @@
-FROM python:3.9-slim
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libssl-dev \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN pip install Flask pycryptodome
+COPY server /app/server
 
-COPY server.py .
+# RUN gcc -O2 -o server server.c -lcrypto
 
-CMD ["python", "server.py"]
-
+EXPOSE 5000
+CMD ["./server"]

