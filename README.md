@@ -23,23 +23,60 @@ An RSA key pair is generated as follows:
 - Choose two large primes $p, q$ and compute the modulus $N = p q$.
 - Compute $\varphi(N) = (p-1)(q-1)$.
 - Choose a public exponent $e$ such that $\gcd(e, \varphi(N)) = 1$.
-- Compute the private exponent $d$ such that $e \cdot d \equiv 1 \pmod{\varphi(N)}$.
+- Compute the private exponent $d$ such that
+  $$
+  e \cdot d \equiv 1 \pmod{\varphi(N)}.
+  $$
 
-The **public key** is $(N, e)$ and the **private key** is $(N, d)$ (together with the factors $p, q$ for CRT optimization).
+In short:
 
-- **Textbook RSA encryption (insecure in practice):**
-  - Encryption: $c = m^e \bmod N$  
-  - Decryption: $m = c^d \bmod N$
+- **Public key:** $(N, e)$  
+- **Private key:** $(N, d)$
+
+
+
+#### Textbook RSA (basic but insecure)
+
+The “textbook” RSA operations are:
+
+- **Encryption:**  $c = m^e \bmod N$
   
-  Here $m$ is a number representing the plaintext (with $0 \le m < N$).  
-  Without padding, textbook RSA is deterministic and **not semantically secure** (vulnerable to chosen-plaintext and chosen-ciphertext attacks).
+- **Decryption:** 
+  $m = c^d \bmod N$
 
-- **RSA with padding (practical schemes):**
-  - Real-world RSA encryption **must** use padding schemes (e.g., PKCS#1 v1.5 encryption or OAEP).
-  - Padding adds randomness and structure to $m$ before exponentiation, making the scheme resistant to basic attacks and achieving stronger security notions (e.g., IND-CPA, IND-CCA under assumptions).
+Here $m$ is an integer encoding of the plaintext with $0 \le m < N$.
+
+Textbook RSA is **not secure in practice** because:
+
+- It is **deterministic** (encrypting the same message always gives the same ciphertext).
+- It does **not** provide semantic security, and is vulnerable to chosen-plaintext and chosen-ciphertext attacks.
+
+Real-world systems therefore never use textbook RSA; they always wrap it with a padding/encoding scheme.
 
 
----
+
+#### CRT Optimization (speeding up decryption/signing)
+
+Computing $c^d \bmod N$ directly is expensive when $N$ is large. Most implementations speed this up using the Chinese Remainder Theorem (CRT), by precomputing:
+
+- $d_p = d \bmod (p-1)$  
+- $d_q = d \bmod (q-1)$  
+- $u = q^{-1} \bmod p$  (the modular inverse of $q$ modulo $p$)
+
+- **Encryption CRT:** Same as textbook RSA
+
+
+- **Decryption CRT:**
+
+1. $\displaystyle m_{p} \equiv c^{d_{p}} \ (\bmod p) ,\ m_{q} \ \equiv c^{d_{q}} \ (\bmod q)$
+
+2. $\displaystyle h\equiv ( m_{p} -m_{q}) u\ (\bmod p)$
+
+3. $\displaystyle m\equiv m_{q} +q\cdotp h( \ \bmod n)$
+
+4. Output $\displaystyle m$
+
+
 
 ### 2. RSA Signature Schemes
 
@@ -121,7 +158,7 @@ These schemes and their differences are central to our later sections on **attac
 
 
 
-## Factoring Problem in the Context of RSA
+## Factoring Problem in RSA
 
 ### 1. Context
 
@@ -188,8 +225,9 @@ To rely on RSA securely, the system’s design must ensure that the factoring as
 These goals collectively formalize what it means, at the system level, to “assume factoring is hard”: we must choose parameters, algorithms, and operational practices so that any realistic adversary’s success probability in factoring $N$ (as produced by $\text{GenModulus}$) remains negligible.
 
 
+# Proposed Solution
 
-# Implementation and Testing
+## Cryptanalysis Tools
 - Python 3.x
 
 Install: https://www.python.org/downloads/
@@ -225,6 +263,66 @@ from sage.all import *
 - Pycryptodome
 
 Docs and installation guide of the library: https://pycryptodome.readthedocs.io/en/latest/src/introduction.html. PyCryptodome provides many cryptographic functions for working with RSA
+
+## Basic attack models
+
+We will focus on some specific cases where the RSA parameters do not satisfy the security conditions assumed by the `GenModulus` algorithm in the factoring assumption. These “non-ideal” choices produce **vulnerable instances** that are easier to analyze and attack.
+
+
+### Factoring Attacks
+
+
+
+### Wiener's Attacks
+
+Wiener's attack is an attack on RSA that uses continued fractions to find the private exponent when it is small. Specifically when it is less than $\displaystyle \frac{1}{3}\sqrt[4]{n}$ where $\displaystyle n$ is the modulus.
+
+
+
+Wiener's attack is based on the following theorem:
+#### Wiener's theorem
+
+Let $\displaystyle n=pq$ with $\displaystyle q< p< 2q$. Let $\displaystyle d< \frac{1}{3}\sqrt[4]{n}$. Given $\displaystyle n$ and $\displaystyle e$ with $\displaystyle ed\equiv 1\ \bmod \phi ( n)$, the attacker can efficiently recover $\displaystyle d$. 
+
+#### Attack 
+
+
+Suppose we have the public key $(n, e)$, this attack will determine $d$.
+
+1. Convert the fraction $\dfrac{e}{n}$ into a continued fraction
+
+$$
+\frac{e}{n} = [a_0; a_1, a_2, \dots, a_{k-2}, a_{k-1}, a_k].
+$$
+
+3. Iterate over each convergent of this continued fraction:
+ 
+ 
+$$
+\frac{a_0}{1},\quad
+a_0 + \frac{1}{a_1},\quad
+a_0 + \frac{1}{a_1 + \frac{1}{a_2}},\quad
+\dots,\quad
+a_0 + \frac{1}{a_1 + \frac{1}{\ddots + \frac{1}{a_{k-2} + \frac{1}{a_{k-1}}}}}.
+$$
+
+4. For each convergent, say $\dfrac{k}{d}$, check if it can be the correct one by doing:
+
+   - Set the numerator to be $k$ and the denominator to be $d$.
+   - Check if $d$ is odd; if not, move on to the next convergent.
+   - Check if $ed \equiv 1 \pmod{k}$; if not, move on to the next convergent.
+   - Set $\varphi(n) = \frac{ed - 1}{k}$ and find the roots of the polynomial $x^2 - (n - \varphi(n) + 1)x + n.$
+   - If the roots are integers, then we have found $d$ (otherwise, move on to the next convergent).
+
+5. If all convergents have been tried and none of them work, then the given RSA parameters are not vulnerable to Wiener's attack.
+
+
+### Low‑exponent attacks
+
+
+
+### Fault attacks on RSA‑CRT
+
 
 
 # References
