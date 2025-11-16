@@ -355,7 +355,21 @@ $$
 
 ### Low‑exponent attacks
 
+#### Coppersmith's theorem 
+The most powerful attacks on low public exponent RSA are based on a theorem due to Coppersmith. Coppersmith's theorem has many applications, only some of which will be covered here.
 
+**Theorem (Coppersmith):**
+Let $N$ be an integer and $f \in \mathbb{Z}[x]$ be a monic polynomial of degree $d$.  
+Set
+$$X = N^{1/d - \varepsilon}$$
+for some $\varepsilon \ge 0$. Then, given $\langle N, f \rangle$, Marvin can efficiently find all integers $|x_0| < X$ satisfying
+$$f(x_0) \equiv 0 \pmod{N}.$$
+The running time is dominated by the time it takes to run the LLL algorithm on a lattice of dimension $O(w)$ with
+$$w = \min\!\bigl(1/\varepsilon, \log_2 N \bigr).$$
+
+The theorem provides an algorithm for efficiently finding all roots of $f$ modulo $N$ that are less than
+$$X = N^{1/d}.$$
+As $X$ gets smaller, the algorithm’s running time decreases. The theorem’s strength is its ability to find small roots of polynomials modulo a composite $N$. When working modulo a prime, there is no reason to use Coppersmith’s theorem since other, far better, root-finding algorithms exist.
 
 ### Fault attacks on RSA‑CRT
 
