@@ -362,7 +362,7 @@ The most powerful attacks on low public exponent RSA are based on a theorem due 
 Let $N$ be an integer and $f \in \mathbb{Z}[x]$ be a monic polynomial of degree $d$.  
 Set
 $$X = N^{1/d - \varepsilon}$$
-for some $\varepsilon \ge 0$. Then, given $\langle N, f \rangle$, Marvin can efficiently find all integers $|x_0| < X$ satisfying
+for some $\varepsilon \ge 0$. Then, given $\langle N, f \rangle$, one can efficiently find all integers $|x_0| < X$ satisfying
 $$f(x_0) \equiv 0 \pmod{N}.$$
 The running time is dominated by the time it takes to run the LLL algorithm on a lattice of dimension $O(w)$ with
 $$w = \min\!\bigl(1/\varepsilon, \log_2 N \bigr).$$
