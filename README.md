@@ -23,23 +23,60 @@ An RSA key pair is generated as follows:
 - Choose two large primes $p, q$ and compute the modulus $N = p q$.
 - Compute $\varphi(N) = (p-1)(q-1)$.
 - Choose a public exponent $e$ such that $\gcd(e, \varphi(N)) = 1$.
-- Compute the private exponent $d$ such that $e \cdot d \equiv 1 \pmod{\varphi(N)}$.
+- Compute the private exponent $d$ such that
+  $$
+  e \cdot d \equiv 1 \pmod{\varphi(N)}.
+  $$
 
-The **public key** is $(N, e)$ and the **private key** is $(N, d)$ (together with the factors $p, q$ for CRT optimization).
+In short:
 
-- **Textbook RSA encryption (insecure in practice):**
-  - Encryption: $c = m^e \bmod N$  
-  - Decryption: $m = c^d \bmod N$
+- **Public key:** $(N, e)$  
+- **Private key:** $(N, d)$
+
+
+
+#### Textbook RSA (basic but insecure)
+
+The “textbook” RSA operations are:
+
+- **Encryption:**  $c = m^e \bmod N$
   
-  Here $m$ is a number representing the plaintext (with $0 \le m < N$).  
-  Without padding, textbook RSA is deterministic and **not semantically secure** (vulnerable to chosen-plaintext and chosen-ciphertext attacks).
+- **Decryption:** 
+  $m = c^d \bmod N$
 
-- **RSA with padding (practical schemes):**
-  - Real-world RSA encryption **must** use padding schemes (e.g., PKCS#1 v1.5 encryption or OAEP).
-  - Padding adds randomness and structure to $m$ before exponentiation, making the scheme resistant to basic attacks and achieving stronger security notions (e.g., IND-CPA, IND-CCA under assumptions).
+Here $m$ is an integer encoding of the plaintext with $0 \le m < N$.
+
+Textbook RSA is **not secure in practice** because:
+
+- It is **deterministic** (encrypting the same message always gives the same ciphertext).
+- It does **not** provide semantic security, and is vulnerable to chosen-plaintext and chosen-ciphertext attacks.
+
+Real-world systems therefore never use textbook RSA; they always wrap it with a padding/encoding scheme.
 
 
----
+
+#### CRT Optimization (speeding up decryption/signing)
+
+Computing $c^d \bmod N$ directly is expensive when $N$ is large. Most implementations speed this up using the Chinese Remainder Theorem (CRT), by precomputing:
+
+- $d_p = d \bmod (p-1)$  
+- $d_q = d \bmod (q-1)$  
+- $u = q^{-1} \bmod p$  (the modular inverse of $q$ modulo $p$)
+
+- **Encryption CRT:** Same as textbook RSA
+
+
+- **Decryption CRT:**
+
+1. $\displaystyle m_{p} \equiv c^{d_{p}} \ (\bmod p) ,\ m_{q} \ \equiv c^{d_{q}} \ (\bmod q)$
+
+2. $\displaystyle h\equiv ( m_{p} -m_{q}) u\ (\bmod p)$
+
+3. $\displaystyle m\equiv m_{q} +q\cdotp h( \ \bmod n)$
+
+4. Output $\displaystyle m$
+
+
 
 ### 2. RSA Signature Schemes
 
@@ -121,7 +158,7 @@ These schemes and their differences are central to our later sections on **attac
 
 
 
-## Factoring Problem in the Context of RSA
+## Factoring Problem in RSA
 
 ### 1. Context
 
@@ -188,8 +225,9 @@ To rely on RSA securely, the system’s design must ensure that the factoring as
 These goals collectively formalize what it means, at the system level, to “assume factoring is hard”: we must choose parameters, algorithms, and operational practices so that any realistic adversary’s success probability in factoring $N$ (as produced by $\text{GenModulus}$) remains negligible.
 
 
+# Proposed Solution
 
-# Implementation and Testing
+## Cryptanalysis Tools
 - Python 3.x
 
 Install: https://www.python.org/downloads/
@@ -226,6 +264,201 @@ from sage.all import *
 
 Docs and installation guide of the library: https://pycryptodome.readthedocs.io/en/latest/src/introduction.html. PyCryptodome provides many cryptographic functions for working with RSA
 
+## Basic attack models
+
+We will focus on some specific cases where the RSA parameters do not satisfy the security conditions assumed by the `GenModulus` algorithm in the factoring assumption. These “non-ideal” choices produce **vulnerable instances** that are easier to analyze and attack.
+
+
+### Factoring Attacks
+
+In the factoring attack model, the attacker only sees the public RSA key $(N, e)$ and tries to break RSA by **factoring the modulus**
+$$
+N = p q.
+$$
+
+If the attacker recovers the two primes $p$ and $q$, then:
+
+- compute $\varphi(N) = (p-1)(q-1)$,
+- compute the private exponent
+  $$
+  d = e^{-1} \bmod \varphi(N),
+  $$
+- obtain the full private key $(N, d)$.
+
+At this point, RSA is completely broken: the attacker can decrypt any ciphertext $c$ as $m = c^d \bmod N$ and forge valid signatures $s = m^d \bmod N$ that verify under $(N, e)$.  
+This directly violates the **factoring assumption** in the `GenModulus` experiment.
+
+In practice, factoring is done using a dedicated integer-factoring algorithm. For large “random-looking” RSA moduli, the fastest known classical algorithm is the **General Number Field Sieve (GNFS)**. In this project we treat GNFS as a **black-box factoring oracle**:
+
+- Input: the modulus $N$,
+- Output: (possibly) two primes $p, q$ with $N = p q$.
+
+Factoring attacks become feasible when the RSA parameters **do not satisfy** the security conditions of `GenModulus`, for example:
+
+- $N$ is **too small** (toy bitlengths used in lab),
+- the key generation is weak (poor randomness, repeated primes, special structure in $p$ or $q$).
+
+#### Attack outline
+
+Given the public key $(N, e)$:
+
+1. Run a factoring algorithm (conceptually, GNFS) on $N$ to obtain $p$ and $q$ such that $N = p q$.
+2. Compute $\varphi(N) = (p-1)(q-1)$.
+3. Compute the private exponent $d = e^{-1} \bmod \varphi(N)$.
+4. Use $(N, d)$ to:
+   - decrypt sample ciphertexts $c$ as $m = c^d \bmod N$,
+   - or forge signatures $s = m^d \bmod N$.
+
+### Wiener's Attacks
+
+Wiener's attack is an attack on RSA that uses continued fractions to find the private exponent when it is small. Specifically when it is less than $\displaystyle \frac{1}{3}\sqrt[4]{n}$ where $\displaystyle n$ is the modulus.
+
+
+
+Wiener's attack is based on the following theorem:
+#### Wiener's theorem
+
+Let $\displaystyle n=pq$ with $\displaystyle q< p< 2q$. Let $\displaystyle d< \frac{1}{3}\sqrt[4]{n}$. Given $\displaystyle n$ and $\displaystyle e$ with $\displaystyle ed\equiv 1\ \bmod \phi ( n)$, the attacker can efficiently recover $\displaystyle d$. 
+
+#### Attack 
+
+
+Suppose we have the public key $(n, e)$, this attack will determine $d$.
+
+1. Convert the fraction $\dfrac{e}{n}$ into a continued fraction
+
+$$
+\frac{e}{n} = [a_0; a_1, a_2, \dots, a_{k-2}, a_{k-1}, a_k].
+$$
+
+3. Iterate over each convergent of this continued fraction:
+ 
+ 
+$$
+\frac{a_0}{1},\quad
+a_0 + \frac{1}{a_1},\quad
+a_0 + \frac{1}{a_1 + \frac{1}{a_2}},\quad
+\dots,\quad
+a_0 + \frac{1}{a_1 + \frac{1}{\ddots + \frac{1}{a_{k-2} + \frac{1}{a_{k-1}}}}}.
+$$
+
+4. For each convergent, say $\dfrac{k}{d}$, check if it can be the correct one by doing:
+
+   - Set the numerator to be $k$ and the denominator to be $d$.
+   - Check if $d$ is odd; if not, move on to the next convergent.
+   - Check if $ed \equiv 1 \pmod{k}$; if not, move on to the next convergent.
+   - Set $\varphi(n) = \frac{ed - 1}{k}$ and find the roots of the polynomial $x^2 - (n - \varphi(n) + 1)x + n.$
+   - If the roots are integers, then we have found $d$ (otherwise, move on to the next convergent).
+
+5. If all convergents have been tried and none of them work, then the given RSA parameters are not vulnerable to Wiener's attack.
+
+
+### Low‑exponent attacks
+
+#### Coppersmith's theorem 
+The most powerful attacks on low public exponent RSA are based on a theorem due to Coppersmith. Coppersmith's theorem has many applications, only some of which will be covered here.
+
+**Theorem (Coppersmith):**
+Let $N$ be an integer and $f \in \mathbb{Z}[x]$ be a monic polynomial of degree $d$.  
+Set
+$$X = N^{1/d - \varepsilon}$$
+for some $\varepsilon \ge 0$. Then, given $\langle N, f \rangle$, one can efficiently find all integers $|x_0| < X$ satisfying
+$$f(x_0) \equiv 0 \pmod{N}.$$
+The running time is dominated by the time it takes to run the LLL algorithm on a lattice of dimension $O(w)$ with
+$$w = \min\!\bigl(1/\varepsilon, \log_2 N \bigr).$$
+
+The theorem provides an algorithm for efficiently finding all roots of $f$ modulo $N$ that are less than
+$$X = N^{1/d}.$$
+As $X$ gets smaller, the algorithm’s running time decreases. The theorem’s strength is its ability to find small roots of polynomials modulo a composite $N$. When working modulo a prime, there is no reason to use Coppersmith’s theorem since other, far better, root-finding algorithms exist.
+
+### Fault attacks on RSA‑CRT
+
+In practice, RSA implementations almost always use CRT optimization to speed up private-key operations (decryption and signing).  
+Instead of computing
+
+$$
+s = m^d \bmod N,
+$$
+
+they use the precomputed CRT parameters:
+- $N = p q$,
+- $d_p = d \bmod (p - 1)$,
+- $d_q = d \bmod (q - 1)$,
+- $u = p^{-1} \bmod q$ (or equivalently $q^{-1} \bmod p$, depending on convention).
+
+The RSA-CRT signing algorithm is:
+
+1. Compute partial signatures
+
+$$
+s_p = m^{d_p} \bmod p,\quad
+s_q = m^{d_q} \bmod q.
+$$
+
+2. Recombine using CRT, e.g.
+
+$$
+h = (s_q - s_p)\,u \bmod q,\quad
+s = s_p + h \cdot p \bmod N.
+$$
+
+
+The signature $s$ satisfies $s \equiv m^d \pmod{N}$ and verifies as usual:
+
+$$
+s^e \equiv m \pmod{N}.
+$$
+
+A **fault attack on RSA-CRT** assumes the attacker can induce a computational error during this CRT process (e.g. by voltage/clock glitching, laser fault injection, or any physical disturbance) and obtain at least one faulty signature $s'$. Under mild assumptions, a faulty CRT signature is enough to factor $N$.
+
+
+
+#### Attack intuition
+
+Suppose a fault occurs *only* in one of the two branches, say in the computation modulo $p$:
+
+- Instead of $s_p = m^{d_p} \bmod p$, the device computes some corrupted value $s_p'$.
+- The branch modulo $q$ is still correct: $s_q' = s_q$.
+
+After CRT recombination, the faulty signature $s'$ satisfies:
+
+- $s' \equiv s_p' \pmod{p}$ (wrong),
+- $s' \equiv s_q \pmod{q}$ (still correct).
+
+The correct signature $s$ satisfies:
+
+- $s \equiv s_p \pmod{p}$,
+- $s \equiv s_q \pmod{q}$.
+
+Therefore, modulo $q$ we have
+
+$$
+s' \equiv s \pmod{q},
+$$
+
+so
+
+$$
+s - s' \equiv 0 \pmod{q},
+$$
+
+but in general $s - s' \not\equiv 0 \pmod{p}$.
+
+Hence,
+
+$$
+q \mid (s - s') \quad \text{but} p \nmid (s - s').
+$$
+
+
+So the attacker can recover $q$ as
+
+
+$$
+q = \gcd(N, s - s').
+$$
+
+Once $q$ (or $p$) is known, factoring $N$ is trivial, and the private key follows.
 
 # References
 - [Twenty Years of Attacks on the RSA Cryptosystem, Dan Boneh](https://crypto.stanford.edu/~dabo/papers/RSA-survey.pdf)
