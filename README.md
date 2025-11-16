@@ -373,7 +373,92 @@ As $X$ gets smaller, the algorithm’s running time decreases. The theorem’s s
 
 ### Fault attacks on RSA‑CRT
 
+In practice, RSA implementations almost always use CRT optimization to speed up private-key operations (decryption and signing).  
+Instead of computing
 
+$$
+s = m^d \bmod N,
+$$
+
+they use the precomputed CRT parameters:
+- $N = p q$,
+- $d_p = d \bmod (p - 1)$,
+- $d_q = d \bmod (q - 1)$,
+- $u = p^{-1} \bmod q$ (or equivalently $q^{-1} \bmod p$, depending on convention).
+
+The RSA-CRT signing algorithm is:
+
+1. Compute partial signatures
+
+$$
+s_p = m^{d_p} \bmod p,\quad
+s_q = m^{d_q} \bmod q.
+$$
+
+2. Recombine using CRT, e.g.
+
+$$
+h = (s_q - s_p)\,u \bmod q,\quad
+s = s_p + h \cdot p \bmod N.
+$$
+
+
+The signature $s$ satisfies $s \equiv m^d \pmod{N}$ and verifies as usual:
+
+$$
+s^e \equiv m \pmod{N}.
+$$
+
+A **fault attack on RSA-CRT** assumes the attacker can induce a computational error during this CRT process (e.g. by voltage/clock glitching, laser fault injection, or any physical disturbance) and obtain at least one faulty signature $s'$. Under mild assumptions, a faulty CRT signature is enough to factor $N$.
+
+
+
+#### Attack intuition
+
+Suppose a fault occurs *only* in one of the two branches, say in the computation modulo $p$:
+
+- Instead of $s_p = m^{d_p} \bmod p$, the device computes some corrupted value $s_p'$.
+- The branch modulo $q$ is still correct: $s_q' = s_q$.
+
+After CRT recombination, the faulty signature $s'$ satisfies:
+
+- $s' \equiv s_p' \pmod{p}$ (wrong),
+- $s' \equiv s_q \pmod{q}$ (still correct).
+
+The correct signature $s$ satisfies:
+
+- $s \equiv s_p \pmod{p}$,
+- $s \equiv s_q \pmod{q}$.
+
+Therefore, modulo $q$ we have
+
+$$
+s' \equiv s \pmod{q},
+$$
+
+so
+
+$$
+s - s' \equiv 0 \pmod{q},
+$$
+
+but in general $s - s' \not\equiv 0 \pmod{p}$.
+
+Hence,
+
+$$
+q \mid (s - s') \quad \text{but} p \nmid (s - s').
+$$
+
+
+So the attacker can recover $q$ as
+
+
+$$
+q = \gcd(N, s - s').
+$$
+
+Once $q$ (or $p$) is known, factoring $N$ is trivial, and the private key follows.
 
 # References
 - [Twenty Years of Attacks on the RSA Cryptosystem, Dan Boneh](https://crypto.stanford.edu/~dabo/papers/RSA-survey.pdf)
