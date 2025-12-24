@@ -272,6 +272,7 @@ We will focus on some specific cases where the RSA parameters do not satisfy the
 ### Factoring Attacks
 
 In the factoring attack model, the attacker only sees the public RSA key $(N, e)$ and tries to break RSA by **factoring the modulus**
+
 $$
 N = p q.
 $$
@@ -280,9 +281,11 @@ If the attacker recovers the two primes $p$ and $q$, then:
 
 - compute $\varphi(N) = (p-1)(q-1)$,
 - compute the private exponent
-  $$
-  d = e^{-1} \bmod \varphi(N),
-  $$
+
+$$
+d = e^{-1} \bmod \varphi(N),
+$$
+  
 - obtain the full private key $(N, d)$.
 
 At this point, RSA is completely broken: the attacker can decrypt any ciphertext $c$ as $m = c^d \bmod N$ and forge valid signatures $s = m^d \bmod N$ that verify under $(N, e)$.  
