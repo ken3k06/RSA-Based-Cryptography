@@ -144,8 +144,12 @@ def attack(padding_oracle, n, e, c):
     s = _step_2a(padding_oracle, n, e, c0, B)
     M = _step_3(n, B, s, M)
     i = 1
+    if len(M) == 0:
+        logging.error("Không có khoảng nào còn lại sau Step 2.a")
+        return os._exit(1)
     while True:
         logging.info(f"--- Vòng lặp {i}, {len(M)} khoảng ---")
+        logging.info(f"Các khoảng hiện tại: {M}")
         if len(M) > 1:
             s = _step_2b(padding_oracle, n, e, c0, s)
         else:
@@ -234,8 +238,8 @@ if __name__ == "__main__":
     logging.info("Đã tạo bản tin (ciphertext).")
 
     # --- Chuẩn bị Oracle ---
-    HOST = os.getenv("ORACLE_HOST", "tls_like_server") # server
-    PORT = int(os.getenv("ORACLE_PORT", "1337"))
+    HOST = os.getenv("ORACLE_HOST_PATCHED", "tls_like_server_patched") # server
+    PORT = int(os.getenv("ORACLE_PORT_PATCHED", "1338"))
 
     stats = OracleStats()
 

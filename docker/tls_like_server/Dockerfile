@@ -2,8 +2,7 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 LANG=C.UTF-8
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc libgmp-dev netcat-openbsd \
+RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # copy server into image build context (ensure server.py present in context)

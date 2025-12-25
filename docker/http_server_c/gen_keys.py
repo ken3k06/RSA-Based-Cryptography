@@ -8,7 +8,7 @@ KEY_DIR = Path("/app/keys")
 KEY_DIR.mkdir(parents=True, exist_ok=True)
 
 KEY_BITS = int(os.getenv("KEY_BITS", "1024"))
-SCALE = int(os.getenv("TARGET_D_SCALE", "4"))
+SCALE = int(os.getenv("TARGET_D_SCALE", "4")) # break d < n^(1/4) / 3 -> d_scale > 3
 MAX_TRIES = int(os.getenv("MAX_TRIES", "20000"))
 
 def integer_nth_root(n: int, k: int) -> int:

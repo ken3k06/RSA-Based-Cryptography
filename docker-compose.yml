@@ -33,6 +33,27 @@ services:
       retries: 30
     networks:
       - rsa_lab_net
+  # tls-like oracle (socket based) - PATCHED (no padding oracle)
+  tls_like_server_patched:
+    build:
+      context: ./docker/tls_like_server_patched
+    container_name: tls_like_server_patched
+    ports:
+      - "1338:1338"   # host 1338 -> container 1337
+    volumes:
+      - ./poc:/app/poc
+    environment:
+      - HOST=0.0.0.0
+      - PORT=1338
+      - PUB_DIR=/app/poc/Bleichenbacher
+      - PRIVATE_DIR=/app/keys
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'nc -z localhost 1337 || exit 1'"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks:
+      - rsa_lab_net
 
   http_server_c:
     build:
@@ -57,9 +78,12 @@ services:
       - tls_like_server
       - http_server_b
       - http_server_c
+      - tls_like_server_patched
     environment:
       - ORACLE_HOST=tls_like_server
+      - ORACLE_HOST_PATCHED=tls_like_server_patched
       - ORACLE_PORT=1337
+      - ORACLE_PORT_PATCHED=1338
       - KEY_PATH=/app/poc/Bleichenbacher/public.pem
     # keep container alive, do NOT auto-run attack
     command: ["bash", "-lc", "sleep infinity"]

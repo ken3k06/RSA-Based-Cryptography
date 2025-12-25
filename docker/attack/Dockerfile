@@ -6,7 +6,6 @@ ENV PYTHONUNBUFFERED=1 LANG=C.UTF-8
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc libgmp-dev netcat-openbsd curl \
   && rm -rf /var/lib/apt/lists/*
 
 # preinstall common libs used by PoCs (helps reliability)
