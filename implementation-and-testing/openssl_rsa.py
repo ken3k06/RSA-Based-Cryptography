@@ -85,7 +85,18 @@ def verify(pub, scheme, infile, sigfile):
         sys.exit(1)
 
 def main():
-    parser = argparse.ArgumentParser()
+    
+    parser = argparse.ArgumentParser(
+        description="RSA command-line tool based on OpenSSL 3.6.0",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""Examples:
+    python3 openssl_rsa_cli.py keygen -b 2048
+    python3 openssl_rsa_cli.py enc -i msg.txt -o ct.bin
+    python3 openssl_rsa_cli.py dec -i ct.bin -o pt.txt
+    python3 openssl_rsa_cli.py sign --scheme pss -i msg.txt -o sig.bin
+    python3 openssl_rsa_cli.py verify --scheme pss -i msg.txt -s sig.bin
+    """
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("keygen")
