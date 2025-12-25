@@ -9,7 +9,7 @@ Kocher-style timing attack demo (single-file local measurement).
 
 import time, secrets, random, json, statistics, sys, os
 from typing import List, Tuple
-
+from Crypto.Util.number import * 
 # ----------------------------
 # Miller-Rabin primality test
 # ----------------------------
