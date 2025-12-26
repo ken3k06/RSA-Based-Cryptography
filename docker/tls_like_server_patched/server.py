@@ -12,7 +12,7 @@ from Crypto.Hash import SHA256
 
 # Env / paths
 HOST = os.getenv("HOST", "0.0.0.0")
-PORT = int(os.getenv("PORT", "1337"))
+PORT = int(os.getenv("PORT", "1338"))
 
 # Public key can be exported to a mounted dir (same as your PoC)
 PUB_DIR = os.getenv("PUB_DIR", "/app/poc/Bleichenbacher")
@@ -21,8 +21,8 @@ PRIVATE_DIR = os.getenv("PRIVATE_DIR", "/app/keys")
 Path(PUB_DIR).mkdir(parents=True, exist_ok=True)
 Path(PRIVATE_DIR).mkdir(parents=True, exist_ok=True)
 
-priv_path = os.path.join(PRIVATE_DIR, "private.pem")
-pub_path = os.path.join(PUB_DIR, "public.pem")
+priv_path = os.path.join(PRIVATE_DIR, "private_patched.pem")
+pub_path = os.path.join(PUB_DIR, "public_patched.pem")
 
 # Load or generate keypair
 if os.path.exists(priv_path):

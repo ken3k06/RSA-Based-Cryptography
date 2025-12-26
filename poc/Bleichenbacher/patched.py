@@ -197,7 +197,7 @@ if __name__ == "__main__":
     # --- logging to console + file ---
     log_dir = os.getenv("LOG_DIR", "logs")
     os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, f"attackA_vuln_{time.strftime('%Y%m%d_%H%M%S')}.log")
+    log_path = os.path.join(log_dir, f"attackA_patched_{time.strftime('%Y%m%d_%H%M%S')}.log")
 
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
@@ -215,7 +215,7 @@ if __name__ == "__main__":
     logging.info(f"Logging to file: {log_path}")
 
     # --- Tải Public Key ---
-    PUB_KEY_PATH = "poc/Bleichenbacher/public.pem"
+    PUB_KEY_PATH = "poc/Bleichenbacher/public_patched.pem"
     try:
         pub_key = RSA.import_key(open(PUB_KEY_PATH, "rb").read())
     except FileNotFoundError:
