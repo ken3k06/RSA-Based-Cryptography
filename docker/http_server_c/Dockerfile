@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy code
 COPY gen_keys.py /app/gen_keys.py
+COPY gen_keys_patched.py /app/gen_keys_patched.py
 COPY server.py /app/server.py
 COPY server.sh /app/server.sh
 

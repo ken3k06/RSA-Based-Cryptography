@@ -197,7 +197,7 @@ if __name__ == "__main__":
     # --- logging to console + file ---
     log_dir = os.getenv("LOG_DIR", "logs")
     os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, f"attackA_{time.strftime('%Y%m%d_%H%M%S')}.log")
+    log_path = os.path.join(log_dir, f"attackA_vuln_{time.strftime('%Y%m%d_%H%M%S')}.log")
 
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
@@ -247,13 +247,13 @@ if __name__ == "__main__":
         return query_oracle(c_int_to_test, HOST, PORT, k, stats)
 
     # --- BẮT ĐẦU TẤN CÔNG ---
-    logging.info("Bắt đầu cuộc tấn công Bleichenbacher...")
+    logging.info("Running Bleichenbacher attack...")
     stats.begin()
     m_int = attack(oracle_wrapper, n, e, c_int)
     stats.end()
 
     # --- Hiển thị kết quả ---
-    logging.info("\n--- TẤN CÔNG THÀNH CÔNG! ---")
+    logging.info("\n--- Attack successfullly! ---")
 
     m_bytes = m_int.to_bytes(k, 'big')
 
