@@ -172,7 +172,7 @@ def query_oracle(ciphertext_int, host, port, n_length_bytes, stats: OracleStats)
         try:
             s.connect((host, port))
             s.sendall(c_bytes)
-            response = s.recv(1024)
+            response = s.recv(512)
             ok = (response == b'OK')
             if ok:
                 stats.ok += 1

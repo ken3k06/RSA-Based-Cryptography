@@ -5,22 +5,20 @@ import time
 from pathlib import Path
 
 from Crypto.PublicKey import RSA
-from Crypto.Cipher import PKCS1_v1_5
-from Crypto.Random import get_random_bytes
+from Crypto.Cipher import PKCS1_OAEP
 from Crypto.Hash import SHA256
-
 
 # Env / paths
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "1338"))
 
-# Public key can be exported to a mounted dir (same as your PoC)
 PUB_DIR = os.getenv("PUB_DIR", "/app/poc/Bleichenbacher")
 PRIVATE_DIR = os.getenv("PRIVATE_DIR", "/app/keys")
 
 Path(PUB_DIR).mkdir(parents=True, exist_ok=True)
 Path(PRIVATE_DIR).mkdir(parents=True, exist_ok=True)
 
+# Separate patched keys (good for lab)
 priv_path = os.path.join(PRIVATE_DIR, "private_patched.pem")
 pub_path = os.path.join(PUB_DIR, "public_patched.pem")
 
@@ -29,7 +27,7 @@ if os.path.exists(priv_path):
     key = RSA.import_key(open(priv_path, "rb").read())
     with open(pub_path, "wb") as f:
         f.write(key.publickey().export_key())
-    print(f"[patched] Loaded existing private key; exported public -> {pub_path}")
+    print(f"[patched-oaep] Loaded existing private key; exported public -> {pub_path}")
 else:
     key = RSA.generate(1024)  # lab only
     with open(priv_path, "wb") as f:
@@ -40,29 +38,26 @@ else:
         pass
     with open(pub_path, "wb") as f:
         f.write(key.publickey().export_key())
-    print(f"[patched] Generated new keypair. private -> {priv_path} (container-only); public -> {pub_path}")
+    print(f"[patched-oaep] Generated new keypair. private -> {priv_path} (container-only); public -> {pub_path}")
 
 priv_key = RSA.import_key(open(priv_path, "rb").read())
-cipher = PKCS1_v1_5.new(priv_key)
 
-# --- Patch strategy ---
-# 1) Never reveal padding validity: always same response bytes
-# 2) Reduce timing differences: always do some dummy work
-UNIFORM_REPLY = b"OK"  # could be any constant; important is it's ALWAYS the same
+# OAEP (modern encryption padding) - using SHA256 + MGF1(SHA256)
+oaep_cipher = PKCS1_OAEP.new(priv_key, hashAlgo=SHA256)
+
+# --- Mitigation strategy ---
+# 1) Never reveal validity: always same reply
+# 2) Reduce timing differences: deterministic-ish dummy work
+UNIFORM_REPLY = b"OK"
 
 
 def _dummy_equalize_work(data: bytes) -> None:
-    """
-    Do deterministic-ish work to reduce timing signal.
-    Not a perfect constant-time guarantee in Python, but helps for lab demo.
-    """
-    # Hash a fixed amount, include received data to avoid being optimized away
     h = SHA256.new()
-    h.update(data[:64] + b"\x00" * max(0, 64 - len(data[:64])))
+    # hash fixed 64 bytes (pad with zeros) to keep work constant-ish
+    block = (data[:64] + b"\x00" * 64)[:64]
+    h.update(block)
     _ = h.digest()
-
-    # Add a tiny fixed sleep to blur micro-differences (optional)
-    # Keep small so it doesn't slow too much.
+    # tiny fixed delay (optional, lab only)
     time.sleep(0.001)
 
 
@@ -72,18 +67,18 @@ def handle_client(conn: socket.socket, addr):
         if not data:
             return
 
-        # Always attempt decrypt with sentinel, but DO NOT branch response on result
-        sentinel = get_random_bytes(16)
-        _ = cipher.decrypt(data, sentinel)
+        # Attempt OAEP decrypt but DO NOT branch response on success/failure.
+        # OAEP raises ValueError on invalid ciphertext; we swallow it uniformly.
+        try:
+            _ = oaep_cipher.decrypt(data)
+        except Exception:
+            pass
 
-        # Equalize workload regardless of padding validity
         _dummy_equalize_work(data)
-
-        # Always same response
         conn.sendall(UNIFORM_REPLY)
 
     except Exception:
-        # Even on exception, try to preserve uniform behavior
+        # Even on exception, keep uniform behavior
         try:
             _dummy_equalize_work(b"")
             conn.sendall(UNIFORM_REPLY)
@@ -96,7 +91,7 @@ def main():
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((HOST, PORT))
         s.listen()
-        print(f"[patched] Server listening on {HOST}:{PORT} (uniform response, mitigated oracle)")
+        print(f"[patched-oaep] Server listening on {HOST}:{PORT} (OAEP + uniform response)")
 
         while True:
             conn, addr = s.accept()

