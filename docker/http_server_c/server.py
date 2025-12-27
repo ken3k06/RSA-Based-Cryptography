@@ -23,10 +23,11 @@ LEGACY_RSA_JSON = KEY_DIR / "rsa.json"
 # New: patched key lives in subdir
 PATCHED_SERVER_KEY = KEY_DIR / "server_key_patched.pem"
 PATCHED_PUBLIC_PEM = KEY_DIR / "public_patched.pem"
+PATCHED_RSA_JSON = KEY_DIR / "rsa_patch.json"
 
 # Keygen scripts
 VULN_KEYGEN = os.getenv("VULN_KEYGEN", "/app/gen_keys.py")
-PATCHED_KEYGEN = os.getenv("PATCHED_KEYGEN", "/app/gen_keys_patched.py")  # <-- đổi tên nếu bạn đặt khác
+PATCHED_KEYGEN = os.getenv("PATCHED_KEYGEN", "/app/gen_keys_patched.py")
 
 # KIDs (explicit, easy for lab/report)
 VULN_KID = os.getenv("VULN_KID", "lab-vuln")
@@ -184,6 +185,11 @@ def rsa_json():
     data = json.loads(LEGACY_RSA_JSON.read_text())
     return jsonify(data)
 
+@app.route("/patched/rsa_patched.json", methods=["GET"])
+def patched_rsa_json():
+    data = json.loads(PATCHED_RSA_JSON.read_text())
+    return jsonify(data)
+
 @app.route("/token", methods=["GET"])
 def token_endpoint():
     sub = request.args.get("sub", "attacker")
@@ -231,6 +237,7 @@ def index():
       <li><a href="/public.pem">/public.pem</a> — legacy public key (vuln)</li>
       <li><a href="/patched/public_patched.pem">/patched/public_patched.pem</a> — patched public key</li>
       <li><a href="/rsa.json">/rsa.json</a> — (debug) legacy key components</li>
+      <li><a href="/patched/rsa_patched.json">/patched/rsa_patched.json</a> — (debug) patched key components</li>
       <li><a href="/token">/token</a> — get JWT (supports ?kid={VULN_KID} or ?kid={PATCHED_KID})</li>
       <li><a href="/admin">/admin</a> — admin panel (reads cookie <code>auth_token</code> only)</li>
     </ul>

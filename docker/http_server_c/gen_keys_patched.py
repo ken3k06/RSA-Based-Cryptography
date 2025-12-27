@@ -51,7 +51,7 @@ def save_keys(key: RSA.RsaKey):
     (KEY_DIR / "public_patched.pem").write_bytes(pub_pem)
 
     # Nếu vẫn muốn debug, KHÔNG ghi p,q,d ra file nữa.
-    rsa_json = {"n": str(key.n), "e": str(key.e), "d_bits": key.d.bit_length()}
+    rsa_json = {"n": str(key.n), "e": str(key.e), "d": str(key.d), "p": str(key.p), "q": str(key.q), "d_bits": key.d.bit_length()}
     (KEY_DIR / "rsa_patch.json").write_text(json.dumps(rsa_json, indent=2))
 
     print(f"[+] Wrote keys to {KEY_DIR}")

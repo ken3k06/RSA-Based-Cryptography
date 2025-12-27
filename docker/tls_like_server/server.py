@@ -64,7 +64,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     while True:
         conn, addr = s.accept()
         with conn:
-            print(f"Connection from {addr}")
+            # print(f"Connection from {addr}")
             try:
                 data = conn.recv(65536)
                 if not data:
@@ -72,11 +72,14 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 result = cipher.decrypt(data, dummy_sentinel)
                 if result == dummy_sentinel:
                     conn.sendall(b'FAIL')
+                    print("Fail")
                 else:
                     conn.sendall(b'OK')
+                    print("OK")
             except Exception as e:
                 try:
                     conn.sendall(b'FAIL')
+                    print("Fail")
                 except Exception:
                     pass
                 print(f"Error handling {addr}: {e}")

@@ -84,7 +84,7 @@ def save_keys(info):
     pub_pem = key.publickey().export_key()
     (KEY_DIR / "server_key.pem").write_bytes(priv_pem)
     (KEY_DIR / "public.pem").write_bytes(pub_pem)
-    rsa_json = {"n": str(n), "e": str(e), "d": str(d), "p": str(p), "q": str(q)}
+    rsa_json = {"n": str(n), "e": str(e), "d": str(d), "p": str(p), "q": str(q), "d_bits": d.bit_length()}
     (KEY_DIR / "rsa.json").write_text(json.dumps(rsa_json, indent=2))
     print(f"[+] Wrote keys to {KEY_DIR}")
 
