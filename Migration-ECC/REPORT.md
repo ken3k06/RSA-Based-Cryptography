@@ -11,8 +11,8 @@ Ta có bảng so sánh sau đây về thời gian chạy một số phép tính 
 | Thuật toán (worst-case theo script)                                  | Thời gian chạy (giây) |
 | -------------------------------------------------------------------- | --------------------: |
 | RSA modular exponentiation `pow(m, n-2, n)`                          |          0.0189222010 |
-| ECC scalar multiplication over ( $\mathbb{F}_q$ ) `G*(q-2)`            |          0.0018611840 |
-| ECC scalar multiplication over ( $\mathbb{F}_{q^2}$ ) `G_quad*(q^2/2)` |          0.7118690460 |
+| ECC scalar multiplication over ( $\mathbb{F}_q$ )                      |          0.0018611840 |
+| ECC scalar multiplication over ( $\mathbb{F}_{q^2}$ )                  |          0.7118690460 |
 | Weil pairing over ( $\mathbb{F}_q$ )                                   |          0.0035008340 |
 | Weil pairing over ( $\mathbb{F}_{q^2}$ )                               |          1.5980586600 |
 
