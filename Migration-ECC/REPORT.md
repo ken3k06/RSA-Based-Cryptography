@@ -84,3 +84,57 @@ print(f"Time for Weil pairing F_q^2: {end - start} seconds")
 ```
 
 # Triển khai các thuật toán chữ kí số bằng OpenSSL
+Tham khảo tại: https://docs.openssl.org/3.1/man1/openssl-ec/#synopsis
+
+Kiểm tra phiên bản OpenSSL hiện tại và xem các curve được hỗ trợ:
+```bash
+openssl version
+openssl ecparam -list_curves
+```
+<img width="1195" height="694" alt="image" src="https://github.com/user-attachments/assets/4f9b49c9-53e1-4abb-b764-9f39e022a8c5" />
+
+Tạo private key và public key dùng cho việc kí tin nhắn
+```bash
+openssl ecparam -name secp384r1 -genkey -noout -out private.key
+openssl ec -in private.key -pubout -out public.pem
+```
+<img width="335" height="70" alt="image" src="https://github.com/user-attachments/assets/3f6d3498-53cb-4572-9f3d-45953f376869" />
+
+Để kí một message bất kì, đầu tiên chuyển message đó vào file cần lưu:
+
+```bash
+echo "53edc760b7a66e1f4d8b0c5715725ee447b79c0" > hash.hexxxd -r -p hash.hex > hash.bin
+```
+Kí bằng private key:
+```bash
+openssl pkeyutl -sign -inkey private.key -in hash.bin -out signature.bin
+```
+Xem định dạng của file signature theo format ASN.1
+```bash
+openssl asn1parse -in signature.bin -inform der
+```
+<img width="1837" height="134" alt="image" src="https://github.com/user-attachments/assets/33283739-11c9-4705-900c-bed10b5aa70b" />
+
+Đối với thuật toán kí bằng ECDSA, chữ kí số sẽ được lưu dưới dạng một cặp số $(r,s)$ 
+
+Xác minh chữ kí bằng public key:
+```bash
+openssl pkeyutl -verify -inkey public.pem -pubin -in hash.bin -sigfile signature.bin
+```
+Thông báo thành công: 
+<img width="1269" height="86" alt="image" src="https://github.com/user-attachments/assets/8aafcf5e-dbd0-4aef-8aa8-025dd1921f68" />
+
+Giả sử ta muốn kí và xác minh trực tiếp cho một file bất kì thì có thể làm như sau:
+```bash
+echo "private message" > data.txt
+openssl dgst -sha256 -sign private.key -out signature.bin data.txt
+```
+Xác minh bằng:
+```bash
+openssl dgst -sha256 -verify public.pem -signature signature.bin data.txt
+```
+Kết quả:
+<img width="1131" height="152" alt="image" src="https://github.com/user-attachments/assets/da68355c-f8ad-4935-a62b-ca3776924920" />
+
+
+
