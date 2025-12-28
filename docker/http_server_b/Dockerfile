@@ -1,15 +1,18 @@
-FROM ubuntu:22.04
+# Dockerfile
+FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libssl-dev \
- && rm -rf /var/lib/apt/lists/*
+# Tối ưu log + không tạo .pyc
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY server /app/server
+# Cài dependency tối thiểu
+RUN pip install --no-cache-dir pycryptodome
 
-# RUN gcc -O2 -o server server.c -lcrypto
+# Copy server vào image
+COPY server.py /app/server.py
 
-EXPOSE 5000
-CMD ["./server"]
+EXPOSE 8000
+
+CMD ["python", "/app/server.py"]
