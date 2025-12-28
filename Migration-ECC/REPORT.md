@@ -82,7 +82,26 @@ end = timeit.default_timer()
 print(f"Weil pairing: {e_PQ}")
 print(f"Time for Weil pairing F_q^2: {end - start} seconds")
 ```
+# PKI và cách triển khai 
+PKI cung cấp nền tảng bảo mật bằng cách sử dụng các cặp khóa bất đối xứng và chứng chỉ số. Trong trường hợp của ta thì thuật toán mã hóa bất đối xứng sẽ là ECC. Các quá trình tạo khóa, đăng ký và phát hành chứng chỉ, phân phối và lưu trữ chứng chỉ, xác thực danh tính, mã hóa và giải mã dữ liệu, chữ ký số và quản lý vòng đời chứng chỉ hoạt động đồng bộ để đảm bảo an ninh, tính toàn vẹn và xác thực trong các giao dịch và trao đổi thông tin trực tuyến.
 
+Quy trình hoạt động của PKI như sau:
+- Người dùng:
+  - Tạo một cặp khóa gồm public key và private key
+  - Public key được chia sẻ rộng rãi trong khi private key phải được giữ an toàn và bí mật
+- Yêu cầu cấp chứng chỉ
+  - Người dùng hoặc thiết bị gửi một yêu cầu chứng chỉ (Certificate Signing Request – CSR) đến một cơ quan chứng thực (Certificate Authority – CA).
+  - Yêu cầu này bao gồm khóa công khai và thông tin nhận dạng của người dùng hoặc thiết bị.
+
+CA sau đó sẽ xác minh danh tính của người dùng để đảm bảo rằng họ là người sử hữu hợp pháp của khóa công khai. CA sau đó sẽ cấp chứng chỉ cho người dùng. Nếu CA xác minh thành công danh tính của người dùng, họ sẽ cấp cho người dùng một chứng chỉ kĩ thuật số. Chứng chỉ này chứa thông tin về danh tính của người dùng và khóa công khai của họ và được kí bởi private key của CA. 
+
+Chứng chỉ số này sau đó sẽ được gửi lại cho người dùng hoặc thiết bị, và có thể được phân phối cho bất kì ai cần xác thực danh tính của người dùng hoặc thiết bị đó. Khóa bí mật cần được giữ kín bởi người dùng hoặc thiết bị và không được chia sẻ với bất kì ai khác. 
+
+Khi cần xác thực danh tính, người dùng hoặc thiết bị sẽ cung cấp chứng chỉ số của mình. Bên nhận sẽ kiểm tra chữ ký số trên chứng chỉ để xác nhận nó được phát hành bởi một CA đáng tin cậy. 
+
+Bên nhận cũng cần xác minh khóa công khai trong chứng chỉ thuộc về người dùng hoặc thiết bị được nhận. 
+
+Người dùng sử dụng khóa công khai để mã hóa thông tin: Khi cần gửi dữ liệu an toàn, bên gửi sử dụng khóa công khai của bên nhận (từ chứng chỉ số của bên nhận) để mã hóa dữ liệu. Chỉ bên nhận mới có thể giải mã dữ liệu này bằng khóa bí mật tương ứng.
 # Triển khai các thuật toán chữ kí số bằng OpenSSL
 Tham khảo tại: https://docs.openssl.org/3.1/man1/openssl-ec/#synopsis
 
@@ -136,5 +155,140 @@ openssl dgst -sha256 -verify public.pem -signature signature.bin data.txt
 Kết quả:
 <img width="1131" height="152" alt="image" src="https://github.com/user-attachments/assets/da68355c-f8ad-4935-a62b-ca3776924920" />
 
+
+Tiếp theo ta sẽ tạo chứng chỉ cho HTTP Server sử dụng thuật toán ECC. Ta sẽ sử dụng nginx cho HTTP Server.
+
+Việc đầu tiên là tạo một private key mới cho server trong thư mục `/etc/nginx/ssl` và cấp quyền 600 cho nó:
+```
+cd /etc/nginx
+sudo mkdir ssl
+cd ssl
+sudo openssl genpkey -algorithm EC \
+  -pkeyopt ec_paramgen_curve:secp384r1 \
+  -pkeyopt ec_param_enc:named_curve \
+  -out server-ecc.key
+sudo chmod 600 server-ecc.key
+```
+Xuất public key để gửi xác thực: 
+```
+sudo openssl pkey -in server-ecc.key -pubout -out server-ecc.pub.pem
+```
+Tạo một file cấu hình cho HTTP Server:
+```
+[ req ]
+prompt = no
+default_md = sha256
+distinguished_name = dn
+req_extensions = req_ext
+
+[ dn ]
+C  = VN
+ST = HCM
+L  = HCM
+O  = Demo
+OU = Crypto
+CN = localhost
+
+[ req_ext ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = localhost
+IP.1  = 127.0.0.1
+```
+
+Sau đó tạo file CSR
+```
+sudo openssl req -new -key server-ecc.key -out server.csr -config server.cnf
+```
+Ở đây ta sẽ đóng vai trò là Trusted CA để kí cho chứng chỉ của server
+Tạo CA Key và CA cert:
+```
+sudo openssl genpkey -algorithm EC \
+  -pkeyopt ec_paramgen_curve:secp384r1 \
+  -pkeyopt ec_param_enc:named_curve \
+  -out ca.key
+sudo openssl req -x509 -new -key ca.key -sha256 -days 3650 \
+  -subj "/C=VN/ST=HCM/L=HCM/O=DemoLab/OU=CA/CN=DemoLab Root CA" \
+  -out ca.crt
+sudo openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 825 -sha256 \
+  -extfile server.cnf -extensions req_ext
+```
+Tiếp theo ta cần cấu hình cho nginx server:
+File cấu hình sẽ nằm trong thư mục `sites-available`
+```
+sudo nano default 
+```
+Đầu tiên là thêm mã trạng thái 301 cho HTTP để thông báo chuyển hướng vĩnh viễn URL của server này sang một địa chỉ URL mới. Ở đây ta sẽ redirect các kết nối HTTP sang HTTPS
+```
+server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+
+        # SSL configuration
+        #
+        # listen 443 ssl default_server;
+        # listen [::]:443 ssl default_server;
+        #
+        # Note: You should disable gzip for SSL traffic.
+        # See: https://bugs.debian.org/773332
+        #
+        # Read up on ssl_ciphers to ensure a secure configuration.
+        # See: https://bugs.debian.org/765782
+        #
+        # Self signed certs generated by the ssl-cert package
+        # Don't use them in a production server!
+        #
+        # include snippets/snakeoil.conf;
+
+        # Add index.php to the list if you are using PHP
+
+        server_name _;
+        return 301 https://$host$request_uri;
+
+        location / {
+                # First attempt to serve request as file, then
+                # as directory, then fall back to displaying a 404.
+                try_files $uri $uri/ =404;
+        }
+}
+```
+Cuối cùng là cấu hình port 443 cho HTTPS:
+```
+server {
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
+
+    server_name _;
+
+    root /var/www/html;
+    index index.html index.htm index.nginx-debian.html;
+
+    ssl_certificate     /etc/nginx/ssl/server.crt;
+    ssl_certificate_key /etc/nginx/ssl/server-ecc.key;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+```
+Bước cuối cùng là import chứng chỉ CA đã được kí cho server để enable HTTPs. 
+
+<img width="663" height="650" alt="image" src="https://github.com/user-attachments/assets/5c6324ec-39ba-489d-a851-b297f767b408" />
+
+Chọn Trusted Root Certification Authorities.
+
+Khởi động lại nginx:
+```
+sudo systemctl restart nginx
+```
+Kiểm tra chứng chỉ: 
+
+
+<img width="398" height="300" alt="image" src="https://github.com/user-attachments/assets/0ea585a6-3081-4049-b4f0-6cfabee4078a" />
+<img width="697" height="841" alt="image" src="https://github.com/user-attachments/assets/42d1db7d-16f7-4263-a91b-c7201a37356b" />
 
 
