@@ -1,7 +1,7 @@
 # Chuẩn hóa sang ECC
 Một số chuẩn chữ kí và mã hóa có thể được chuyển từ RSA sang ECC vì các lợi ích của nó. Một trong số những điểm mạnh của ECC so với RSA đó chính là kích thước khóa nhỏ. 
 
-Bảng dưới đây độ lớn của khóa có ảnh hưởng như thế nào đến security level. Ta có thể thấy rằng ECC-256 bits cung cấp cho ta độ bảo mật tương đương với RSA-2048 bits nhưng kích thước khóa bí mật cần lưu trữ lại nhỏ hơn rất nhiều.
+Bảng dưới đây cho biết độ lớn của khóa có ảnh hưởng như thế nào đến security level. Ta có thể thấy rằng ECC-256 bits cung cấp cho ta độ bảo mật tương đương với RSA-2048 bits nhưng kích thước khóa bí mật cần lưu trữ lại nhỏ hơn rất nhiều.
 
 <img width="799" height="168" alt="image" src="https://github.com/user-attachments/assets/f24e0fec-424e-412d-abbd-3d4c48c38e7e" />
 
