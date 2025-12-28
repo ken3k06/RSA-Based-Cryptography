@@ -174,7 +174,7 @@ Trong đa số các trường hợp khác thì số lượng bit sai lệch là 
 
 # Cải tiến
 
-## Trường hợp thứ nhất: Các MSB đầu trùng nhau
+
 
 Nếu xảy ra trường hợp có một số lượng lớn các MSB đầu trùng nhau, chẳng hạn: 
 
@@ -307,6 +307,14 @@ thetaLogN = 4
 <img width="748" height="817" alt="image" src="https://github.com/user-attachments/assets/a91d3931-5df0-48ac-b918-e0b4b668bb42" />
 
 # Khắc phục 
+
+
+## Constant exponentiation time
+Chuẩn hóa các bước thực hiện tính toán lũy thừa, sao cho mỗi bước cần số operations là như nhau.
+
+## Blinding
+Blinding là phương pháp làm nhiễu đầu vào, khiến cho attacker không thể đo được thời gian/power do dữ liệu được sinh ra ngẫu nhiên.
+
 
 
 
