@@ -16,7 +16,7 @@ Ta có bảng so sánh sau đây về thời gian chạy một số phép tính 
 | Weil pairing over ( $\mathbb{F}_q$ )                                   |          0.0035008340 |
 | Weil pairing over ( $\mathbb{F}_{q^2}$ )                               |          1.5980586600 |
 
-*Bảng: Thời gian chạy “worst-case” (theo phép chọn số mũ/scalar trong script) cho RSA, ECC trên ( \mathbb{F}*q ), ECC trên ( \mathbb{F}*{q^2} ), và Weil pairing trên ( \mathbb{F}*q )/( \mathbb{F}*{q^2} ).*
+
 
 
 Code demo: 
