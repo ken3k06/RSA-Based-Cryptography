@@ -291,4 +291,7 @@ Kiểm tra chứng chỉ:
 <img width="398" height="300" alt="image" src="https://github.com/user-attachments/assets/0ea585a6-3081-4049-b4f0-6cfabee4078a" />
 <img width="697" height="841" alt="image" src="https://github.com/user-attachments/assets/42d1db7d-16f7-4263-a91b-c7201a37356b" />
 
-
+Hoặc cũng có thể check bằng `curl`:
+```
+curl --cacert /etc/nginx/ssl/ca.crt -vk https://localhost
+```
