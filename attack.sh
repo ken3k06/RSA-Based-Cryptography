@@ -1,4 +1,5 @@
 #!/bin/bash
+# find . -type f -exec sed -i 's/\r$//' {} +
 set -e
 
 ATTACK="$1"
