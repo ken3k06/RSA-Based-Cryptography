@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 import csv, json, math, os, random, statistics, urllib.request
 from typing import List, Dict, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed # Import mới
+from concurrent.futures import ThreadPoolExecutor, as_completed 
 
 BASE_URL = "http://http_server_b:5000"
-PER_SET = 12000     # Giảm xuống 12k để nhanh hơn, nhưng vẫn đủ an toàn
+PER_SET = 2000     
 TTHRESH = 1
 MAX_BITS = 64
 LOG_PATH = "timing_log.csv"
 SEED = 1337
-CHUNK = 2000        # Tăng Chunk để gửi được nhiều hơn mỗi lần
-AMPLIFY = 1000      # Khớp với Server
+CHUNK = 300        # Tăng Chunk để gửi được nhiều hơn mỗi lần
+AMPLIFY = 500      # Khớp với Server
 MAX_RETRIES = 5
 
 def amp_mix(x: int, amplify: int) -> int:
@@ -94,7 +94,7 @@ def sign_pool(pool: List[int]) -> Dict[int, int]:
     chunks = [pool[i:i+CHUNK] for i in range(0, len(pool), CHUNK)]
     
     # Dùng 20 luồng chạy song song
-    with ThreadPoolExecutor(max_workers=20) as executor:
+    with ThreadPoolExecutor(max_workers=8) as executor:
         future_to_chunk = {executor.submit(sign_batch, chunk): chunk for chunk in chunks}
         for future in as_completed(future_to_chunk):
             try:

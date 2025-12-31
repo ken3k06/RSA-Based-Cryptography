@@ -11,6 +11,17 @@ services:
     hostname: http_server_b
     networks:
       - rsa_lab_net
+  
+  http_server_b_patched:
+    build:
+      context: ./docker/http_server_b_patched
+    ports:
+      - "5001:5001"   # host 5001 -> container 5001
+    volumes:
+      - ./docker/http_server_b_patched:/app
+    hostname: http_server_b_patched
+    networks:
+      - rsa_lab_net
 
   # tls-like oracle (socket based) for Bleichenbacher PoC
   tls_like_server:
@@ -77,6 +88,7 @@ services:
     depends_on:
       - tls_like_server
       - http_server_b
+      - http_server_b_patched
       - http_server_c
       - tls_like_server_patched
     environment:
