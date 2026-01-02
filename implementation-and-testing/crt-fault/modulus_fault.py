@@ -17,7 +17,7 @@ N_fault = bytes([10]) + N_bytes[1:]
 N_fault = bytes_to_long(N_fault)
 print(N_fault)
 for i in range(6):
-    msg = bytes_to_long(str(0).encode())
+    msg = bytes_to_long(str(i).encode())
     sigma_p = pow(msg,d,p)
     sigma_q = pow(msg,d,q)
     alpha = q*pow(q,-1,p)
@@ -26,7 +26,7 @@ for i in range(6):
     sig_1.append(sig)
 sig_2 = []
 for i in range(6):
-    msg = bytes_to_long(str(0).encode())
+    msg = bytes_to_long(str(i).encode())
     sigma_p = pow(msg,d,p)
     sigma_q = pow(msg,d,q)
     alpha = q*pow(q,-1,p)
